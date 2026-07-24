@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>PLATEAU.</title>
+<meta name="theme-color" content="#0c0c0e" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="PLATEAU" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icon-180.png" />
+<link rel="icon" href="icon-192.png" />
+<link rel="stylesheet" href="app.css?v=1784848621207" />
+<style>
+  html, body { margin: 0; padding: 0; background: #0c0c0e; -webkit-tap-highlight-color: transparent; }
+  * { box-sizing: border-box; }
+  #root { min-height: 100vh; }
+  .boot { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px;
+          color: #8f8f98; font-family: system-ui, sans-serif; font-size: 14px; text-align: center; }
+  .boot b { color: #f5c518; display: block; margin-bottom: 8px; font-size: 16px; }
+  .boot code { display: block; margin-top: 10px; color: #f87171; font-size: 12px; word-break: break-word; }
+</style>
+<script>
+  // ————— Stockage local (persistant sur l'appareil) —————
+  window.storage = {
+    async get(key) {
+      const v = localStorage.getItem("pl:" + key);
+      if (v === null) throw new Error("not found");
+      return { key: key, value: v, shared: false };
+    },
+    async set(key, value) { localStorage.setItem("pl:" + key, value); return { key: key, value: value, shared: false }; },
+    async delete(key) { localStorage.removeItem("pl:" + key); return { key: key, deleted: true, shared: false }; },
+    async list(prefix) {
+      var keys = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf("pl:") === 0 && (!prefix || k.slice(3).indexOf(prefix) === 0)) keys.push(k.slice(3));
+      }
+      return { keys: keys, shared: false };
+    }
+  };
+  // ————— Affichage d'erreur (plutôt qu'un chargement infini) —————
+  window.__plateauBoot = function (msg) {
+    var el = document.getElementById("root");
+    if (el) el.innerHTML = '<div class="boot"><div><b>PLATEAU n\'a pas pu démarrer</b>Recharge la page. Si ça persiste, envoie ce message à Claude :<code>' + msg + '</code></div></div>';
+  };
+  window.addEventListener("error", function (e) {
+    if (document.getElementById("plateau-ready")) return;
+    window.__plateauBoot((e.message || "erreur inconnue") + (e.filename ? " — " + String(e.filename).split("/").pop() + ":" + e.lineno : ""));
+  });
+</script>
+</head>
+<body>
+<div id="root"><div class="boot"><div><b>PLATEAU.</b>Chargement…</div></div></div>
+<script src="react.js?v=1784848621207"></script>
+<script src="react-dom.js?v=1784848621207"></script>
+<script>
+  if (!window.React || !window.ReactDOM) window.__plateauBoot("React n'a pas pu être chargé (réseau ?)");
+</script>
+<script src="app.js?v=1784848621207"></script>
+<script>
+  (function () {
+    var m = document.createElement("meta");
+    m.id = "plateau-ready";
+    document.head.appendChild(m);
+    if ("serviceWorker" in navigator && location.protocol === "https:") {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    }
+  })();
+</script>
+</body>
+</html>
