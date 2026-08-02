@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>PLATEAU.</title>
+<meta name="theme-color" content="#f6f4ef" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="PLATEAU" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icon-180.png" />
+<link rel="icon" href="icon-192.png" />
+
+
+
+<link rel="stylesheet" href="app.css?v=1785663571018" />
+<style>
+  /* Tailwind dimensionne tout en rem : agrandir la racine agrandit texte ET espacements.
+     Pas d'override de font-size sur input/button ici : ça entrait en conflit avec les
+     classes Tailwind (text-lg etc.) posées au cas par cas et rendait certains champs petits. */
+  html { font-size: 19px; }
+  html, body { margin: 0; padding: 0; background: #f6f4ef; -webkit-tap-highlight-color: transparent; }
+  * { box-sizing: border-box; }
+  #root { min-height: 100vh; }
+  .boot { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px;
+          color: #726c5e; font-family: system-ui, sans-serif; font-size: 14px; text-align: center; }
+  .boot b { color: #8a5b00; display: block; margin-bottom: 8px; font-size: 16px; }
+  .boot code { display: block; margin-top: 10px; color: #c93a2e; font-size: 12px; word-break: break-word; }
+
+  /* ————— Écran de lancement animé ————— */
+  .splash { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 22px;
+            background: radial-gradient(70% 45% at 50% 42%, rgba(245,197,24,.16), transparent 70%), #f6f4ef;
+            animation: splashOut .5s ease .95s forwards; }
+  @keyframes splashOut { to { opacity: 0; visibility: hidden; } }
+  .splash-logo { font-family: 'Anton', 'Arial Narrow', system-ui, sans-serif; letter-spacing: .02em;
+                 font-size: 46px; line-height: 1; color: #211f1a; text-transform: uppercase;
+                 opacity: 0; animation: splashIn .5s cubic-bezier(.2,.7,.2,1) .1s forwards; }
+  .splash-logo span { color: #f5c518; }
+  @keyframes splashIn { from { opacity: 0; transform: translateY(10px) scale(.96); } to { opacity: 1; transform: none; } }
+  /* disque de fonte qui tourne */
+  .splash-plate { width: 54px; height: 54px; border-radius: 50%; border: 7px solid rgba(245,197,24,.22);
+                  border-top-color: #f5c518; animation: splashSpin .8s linear infinite; }
+  @media (prefers-reduced-motion: reduce) {
+    .splash { animation-delay: .2s; }
+    .splash-logo { animation: none; opacity: 1; }
+    .splash-plate { animation: none; }
+  }
+  @keyframes splashSpin { to { transform: rotate(360deg); } }
+</style>
+<script>
+  // ————— Stockage local (persistant sur l'appareil) —————
+  window.storage = {
+    async get(key) {
+      const v = localStorage.getItem("pl:" + key);
+      if (v === null) throw new Error("not found");
+      return { key: key, value: v, shared: false };
+    },
+    async set(key, value) { localStorage.setItem("pl:" + key, value); return { key: key, value: value, shared: false }; },
+    async delete(key) { localStorage.removeItem("pl:" + key); return { key: key, deleted: true, shared: false }; },
+    async list(prefix) {
+      var keys = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf("pl:") === 0 && (!prefix || k.slice(3).indexOf(prefix) === 0)) keys.push(k.slice(3));
+      }
+      return { keys: keys, shared: false };
+    }
+  };
+  // ————— Affichage d'erreur (plutôt qu'un chargement infini) —————
+  window.__plateauBoot = function (msg) {
+    var el = document.getElementById("root");
+    if (el) el.innerHTML = '<div class="boot"><div><b>PLATEAU n\'a pas pu démarrer</b>Recharge la page. Si ça persiste, envoie ce message à Claude :<code>' + msg + '</code></div></div>';
+  };
+  window.addEventListener("error", function (e) {
+    if (document.getElementById("plateau-ready")) return;
+    window.__plateauBoot((e.message || "erreur inconnue") + (e.filename ? " — " + String(e.filename).split("/").pop() + ":" + e.lineno : ""));
+  });
+</script>
+</head>
+<body>
+<div id="splash" class="splash" aria-hidden="true">
+  <div class="splash-logo">Plateau<span>.</span></div>
+  <div class="splash-plate"></div>
+</div>
+<div id="root"><div class="boot"><div><b>PLATEAU.</b>Chargement…</div></div></div>
+<script src="react.js?v=1785663571018"></script>
+<script src="react-dom.js?v=1785663571018"></script>
+<script>
+  if (!window.React || !window.ReactDOM) window.__plateauBoot("React n'a pas pu être chargé (réseau ?)");
+</script>
+<script src="app.js?v=1785663571018"></script>
+<script>
+  (function () {
+    var m = document.createElement("meta");
+    m.id = "plateau-ready";
+    document.head.appendChild(m);
+    if ("serviceWorker" in navigator && location.protocol === "https:") {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    }
+    // retire l'écran de lancement du DOM une fois l'app montée (sinon il capterait les taps)
+    setTimeout(function () {
+      var s = document.getElementById("splash");
+      if (s && s.parentNode) s.parentNode.removeChild(s);
+    }, 1600);
+  })();
+</script>
+</body>
+</html>
