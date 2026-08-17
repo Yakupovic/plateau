@@ -1314,13 +1314,13 @@ const Chip = ({ active, onClick, children }) => (
   </button>
 );
 
-const Stepper = ({ label, value, onChange, min = 1, max = 30 }) => (
+const Stepper = ({ label, value, onChange, min = 1, max = 30, big = false }) => (
   <div className="flex-1 min-w-0">
     <div className="text-xs mb-1.5 font-semibold" style={{ color: C.dim }}>{label}</div>
-    <div className="flex items-center rounded-2xl overflow-hidden" style={{ background: C.card2, border: `1px solid ${C.hair}`, height: 56 }}>
-      <button className="pl-tap h-full px-3.5 flex items-center" aria-label={`${label} moins`} onClick={() => onChange(Math.max(min, value - 1))} style={{ color: C.text }}><Minus size={18} /></button>
-      <div className="flex-1 text-center" style={{ ...NUMS, ...DISPLAY, fontSize: 24, color: C.text }}>{value}</div>
-      <button className="pl-tap h-full px-3.5 flex items-center" aria-label={`${label} plus`} onClick={() => onChange(Math.min(max, value + 1))} style={{ color: C.text }}><Plus size={18} /></button>
+    <div className="flex items-center rounded-2xl overflow-hidden" style={{ background: C.card2, border: `1px solid ${C.hair}`, height: big ? 76 : 56 }}>
+      <button className="pl-tap h-full px-3.5 flex items-center" aria-label={`${label} moins`} onClick={() => onChange(Math.max(min, value - 1))} style={{ color: C.text }}><Minus size={big ? 26 : 18} /></button>
+      <div className="flex-1 text-center" style={{ ...NUMS, ...DISPLAY, fontSize: big ? 32 : 24, color: C.text }}>{value}</div>
+      <button className="pl-tap h-full px-3.5 flex items-center" aria-label={`${label} plus`} onClick={() => onChange(Math.min(max, value + 1))} style={{ color: C.text }}><Plus size={big ? 26 : 18} /></button>
     </div>
   </div>
 );
@@ -1446,6 +1446,8 @@ function App() {
   // Historique / progression / récup
   const [expandedId, setExpandedId] = useState(null);
   const [histoSearch, setHistoSearch] = useState("");
+  const [histoVue, setHistoVue] = useState("liste");
+  const [calOffset, setCalOffset] = useState(0);
   const [selExo, setSelExo] = useState("");
   const [progMode, setProgMode] = useState("exo"); // exo | corps | muscles
   const [progMensuZone, setProgMensuZone] = useState("Bras");
@@ -3316,6 +3318,17 @@ function App() {
                   Copie auto {data.prefAutoCopie === true ? "ON" : "OFF"}
                 </button>
               </div>
+              <button
+                onClick={() => saveData({ ...data, grosBoutons: data.grosBoutons === true ? false : true })}
+                className="w-full rounded-xl py-3 mb-3 font-semibold text-sm flex items-center justify-center gap-2"
+                style={{
+                  background: data.grosBoutons === true ? C.yellow : C.card2,
+                  color: data.grosBoutons === true ? "#111" : C.text,
+                  border: `1px solid ${data.grosBoutons === true ? C.yellow : C.line}`,
+                }}
+              >
+                🔘 Gros boutons {data.grosBoutons === true ? "ON" : "OFF"} — plus faciles à viser quand t'es cramé
+              </button>
 
               {doublonsExistants.length > 0 && (
                 <div className="rounded-xl p-3 mb-3" style={{ background: C.card, border: `1px solid ${C.yellowDim}` }}>
@@ -3753,9 +3766,9 @@ function App() {
                         </button>
                       )}
                     </div>
-                    <PoidsInput value={ecPoids} onChange={setEcPoids} />
+                    <PoidsInput value={ecPoids} onChange={setEcPoids} height={data.grosBoutons ? 88 : 68} fontSize={data.grosBoutons ? 42 : 34} />
                     <div className="flex gap-3 mt-3 mb-3">
-                      <Stepper label="Reps" value={ecReps} onChange={setEcReps} max={50} />
+                      <Stepper label="Reps" value={ecReps} onChange={setEcReps} max={50} big={data.grosBoutons} />
                     </div>
 
                     <div className="text-xs mb-1" style={{ color: C.dim }}>Ressenti global de l'exo</div>
@@ -4144,13 +4157,13 @@ function App() {
                           Même poids qu'avant ({fmtKg(sugg.last.poids)} kg)
                         </button>
                       )}
-                      <PoidsInput value={fPoids} onChange={setFPoids} />
+                      <PoidsInput value={fPoids} onChange={setFPoids} height={data.grosBoutons ? 88 : 68} fontSize={data.grosBoutons ? 42 : 34} />
                     </div>
 
                     {/* Séries + Reps : ligne dédiée */}
                     <div className="flex gap-3 mb-3">
-                      <Stepper label="Séries" value={fSeries} onChange={setFSeries} />
-                      <Stepper label="Reps" value={fReps} onChange={setFReps} max={50} />
+                      <Stepper label="Séries" value={fSeries} onChange={setFSeries} big={data.grosBoutons} />
+                      <Stepper label="Reps" value={fReps} onChange={setFReps} max={50} big={data.grosBoutons} />
                     </div>
 
                     {fNom.trim().toLowerCase().includes("barre") && String(fPoids).trim() && !isNaN(parseFloat(String(fPoids).replace(",", "."))) && (
@@ -4688,7 +4701,65 @@ function App() {
                 style={{ background: C.card, border: `1px solid ${C.line}`, color: C.text }}
               />
             )}
-            {[...data.seances].reverse().filter((s) => {
+            {data.seances.length > 3 && (
+              <div className="flex gap-2">
+                <Chip active={histoVue === "liste"} onClick={() => setHistoVue("liste")}>Liste</Chip>
+                <Chip active={histoVue === "calendrier"} onClick={() => setHistoVue("calendrier")}>Calendrier</Chip>
+              </div>
+            )}
+            {histoVue === "calendrier" && (() => {
+              const now = new Date();
+              const base = new Date(now.getFullYear(), now.getMonth() + calOffset, 1);
+              const y = base.getFullYear(), m = base.getMonth();
+              const daysInMonth = new Date(y, m + 1, 0).getDate();
+              const startDow = (new Date(y, m, 1).getDay() + 6) % 7; // lundi = 0
+              const byDate = {};
+              data.seances.forEach((s) => { (byDate[s.date] = byDate[s.date] || []).push(s); });
+              const cells = [...Array(startDow).fill(null), ...Array(daysInMonth)].map((_, i, arr) => (i < startDow ? null : i - startDow + 1));
+              const label = base.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+              return (
+                <Card>
+                  <div className="flex items-center justify-between mb-3">
+                    <button onClick={() => setCalOffset(calOffset - 1)} className="w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold" style={{ background: C.card2, color: C.text }}>‹</button>
+                    <div className="text-sm font-bold capitalize">{label}</div>
+                    <button
+                      onClick={() => setCalOffset(Math.min(0, calOffset + 1))}
+                      disabled={calOffset >= 0}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold"
+                      style={{ background: C.card2, color: calOffset >= 0 ? C.hair : C.text }}
+                    >
+                      ›
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-7 gap-1 text-center text-xs mb-1.5" style={{ color: C.dim }}>
+                    {["L", "M", "M", "J", "V", "S", "D"].map((j, i) => <div key={i}>{j}</div>)}
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {cells.map((d, i) => {
+                      if (d == null) return <div key={i} />;
+                      const iso = isoOf(new Date(y, m, d));
+                      const seancesJour = byDate[iso] || [];
+                      const has = seancesJour.length > 0;
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => { if (has) { setExpandedId(seancesJour[0].id); setHistoVue("liste"); } }}
+                          className="aspect-square rounded-lg flex items-center justify-center text-xs font-semibold"
+                          style={{
+                            background: has ? "linear-gradient(180deg, rgba(245,197,24,.22), rgba(245,197,24,.08))" : "transparent",
+                            border: `1px solid ${has ? "rgba(245,197,24,.4)" : C.hair}`,
+                            color: has ? C.yellowDim : C.dim,
+                          }}
+                        >
+                          {d}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Card>
+              );
+            })()}
+            {histoVue === "liste" && [...data.seances].reverse().filter((s) => {
               const q = histoSearch.trim().toLowerCase();
               if (!q) return true;
               return s.nom.toLowerCase().includes(q) || s.exos.some((e) => e.nom.toLowerCase().includes(q));
@@ -5374,8 +5445,42 @@ function App() {
               );
             })()}
 
-            {progMode === "records" && (
-              <Card>
+            {progMode === "records" && (() => {
+              const totalSeances = data.seances.length;
+              const tonnageTotal = data.seances.reduce((a, s) => a + tonnageSeance(s), 0);
+              const BADGES = [
+                { id: "debut", label: "1ère séance", icon: "🎬", done: totalSeances >= 1 },
+                { id: "s10", label: "10 séances", icon: "🔟", done: totalSeances >= 10 },
+                { id: "s50", label: "50 séances", icon: "💪", done: totalSeances >= 50 },
+                { id: "s100", label: "100 séances", icon: "💯", done: totalSeances >= 100 },
+                { id: "streak4", label: "4 sem. streak", icon: "🔥", done: streak >= 4 },
+                { id: "streak12", label: "12 sem. streak", icon: "🔥🔥", done: streak >= 12 },
+                { id: "tonne1", label: "1 t soulevée", icon: "🏋️", done: tonnageTotal >= 1000 },
+                { id: "tonne10", label: "10 t soulevées", icon: "🏆", done: tonnageTotal >= 10000 },
+                { id: "tonne100", label: "100 t soulevées", icon: "👑", done: tonnageTotal >= 100000 },
+              ];
+              return (
+                <>
+                  <Card>
+                    <div className="text-sm font-bold mb-3">Badges de paliers</div>
+                    <div className="grid grid-cols-3 gap-2.5">
+                      {BADGES.map((b) => (
+                        <div
+                          key={b.id}
+                          className="rounded-xl py-3 px-1 text-center"
+                          style={{
+                            background: b.done ? "linear-gradient(180deg, rgba(245,197,24,.16), rgba(245,197,24,.04))" : C.card2,
+                            border: `1px solid ${b.done ? "rgba(245,197,24,.4)" : C.hair}`,
+                            opacity: b.done ? 1 : 0.45,
+                          }}
+                        >
+                          <div style={{ fontSize: 22, filter: b.done ? "none" : "grayscale(1)" }}>{b.icon}</div>
+                          <div className="text-xs mt-1 font-semibold leading-tight" style={{ color: b.done ? C.yellowDim : C.dim }}>{b.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                  <Card>
                 <div className="text-sm font-bold mb-2">Mur des records</div>
                 {mursRecords.length === 0 ? (
                   <div className="text-sm text-center py-6" style={{ color: C.dim }}>Pas encore de records — ça vient.</div>
@@ -5398,8 +5503,10 @@ function App() {
                     );
                   })
                 )}
-              </Card>
-            )}
+                  </Card>
+                </>
+              );
+            })()}
 
           </div>
         )}
@@ -5670,9 +5777,9 @@ function App() {
                   </button>
                 )}
               </div>
-              <PoidsInput value={ecPoids} onChange={setEcPoids} />
+              <PoidsInput value={ecPoids} onChange={setEcPoids} height={data.grosBoutons ? 88 : 68} fontSize={data.grosBoutons ? 42 : 34} />
               <div className="flex gap-3 mt-3 mb-3">
-                <Stepper label="Reps" value={ecReps} onChange={setEcReps} max={50} />
+                <Stepper label="Reps" value={ecReps} onChange={setEcReps} max={50} big={data.grosBoutons} />
               </div>
 
               <div className="flex gap-2 mb-3">

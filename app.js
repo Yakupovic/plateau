@@ -2398,7 +2398,8 @@ const Stepper = ({
   value,
   onChange,
   min = 1,
-  max = 30
+  max = 30,
+  big = false
 }) => /*#__PURE__*/React.createElement("div", {
   className: "flex-1 min-w-0"
 }, /*#__PURE__*/React.createElement("div", {
@@ -2411,7 +2412,7 @@ const Stepper = ({
   style: {
     background: C.card2,
     border: `1px solid ${C.hair}`,
-    height: 56
+    height: big ? 76 : 56
   }
 }, /*#__PURE__*/React.createElement("button", {
   className: "pl-tap h-full px-3.5 flex items-center",
@@ -2421,13 +2422,13 @@ const Stepper = ({
     color: C.text
   }
 }, /*#__PURE__*/React.createElement(Minus, {
-  size: 18
+  size: big ? 26 : 18
 })), /*#__PURE__*/React.createElement("div", {
   className: "flex-1 text-center",
   style: {
     ...NUMS,
     ...DISPLAY,
-    fontSize: 24,
+    fontSize: big ? 32 : 24,
     color: C.text
   }
 }, value), /*#__PURE__*/React.createElement("button", {
@@ -2438,7 +2439,7 @@ const Stepper = ({
     color: C.text
   }
 }, /*#__PURE__*/React.createElement(Plus, {
-  size: 18
+  size: big ? 26 : 18
 }))));
 
 // Grand champ de poids avec boutons −/+ (lisible et tapable pendant l'effort)
@@ -2584,6 +2585,8 @@ function App() {
   // Historique / progression / récup
   const [expandedId, setExpandedId] = useState(null);
   const [histoSearch, setHistoSearch] = useState("");
+  const [histoVue, setHistoVue] = useState("liste");
+  const [calOffset, setCalOffset] = useState(0);
   const [selExo, setSelExo] = useState("");
   const [progMode, setProgMode] = useState("exo"); // exo | corps | muscles
   const [progMensuZone, setProgMensuZone] = useState("Bras");
@@ -5041,7 +5044,18 @@ function App() {
       color: data.prefAutoCopie === true ? "#111" : C.dim,
       border: `1px solid ${data.prefAutoCopie === true ? C.yellow : C.line}`
     }
-  }, "Copie auto ", data.prefAutoCopie === true ? "ON" : "OFF")), doublonsExistants.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Copie auto ", data.prefAutoCopie === true ? "ON" : "OFF")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => saveData({
+      ...data,
+      grosBoutons: data.grosBoutons === true ? false : true
+    }),
+    className: "w-full rounded-xl py-3 mb-3 font-semibold text-sm flex items-center justify-center gap-2",
+    style: {
+      background: data.grosBoutons === true ? C.yellow : C.card2,
+      color: data.grosBoutons === true ? "#111" : C.text,
+      border: `1px solid ${data.grosBoutons === true ? C.yellow : C.line}`
+    }
+  }, "\uD83D\uDD18 Gros boutons ", data.grosBoutons === true ? "ON" : "OFF", " \u2014 plus faciles \xE0 viser quand t'es cram\xE9"), doublonsExistants.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "rounded-xl p-3 mb-3",
     style: {
       background: C.card,
@@ -5596,14 +5610,17 @@ function App() {
     }
   }, "M\xEAme poids qu'avant (", fmtKg(histoOf(ec.nom).slice(-1)[0].poids), " kg)")), /*#__PURE__*/React.createElement(PoidsInput, {
     value: ecPoids,
-    onChange: setEcPoids
+    onChange: setEcPoids,
+    height: data.grosBoutons ? 88 : 68,
+    fontSize: data.grosBoutons ? 42 : 34
   }), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-3 mt-3 mb-3"
   }, /*#__PURE__*/React.createElement(Stepper, {
     label: "Reps",
     value: ecReps,
     onChange: setEcReps,
-    max: 50
+    max: 50,
+    big: data.grosBoutons
   })), /*#__PURE__*/React.createElement("div", {
     className: "text-xs mb-1",
     style: {
@@ -6070,18 +6087,22 @@ function App() {
     }
   }, "M\xEAme poids qu'avant (", fmtKg(sugg.last.poids), " kg)"), /*#__PURE__*/React.createElement(PoidsInput, {
     value: fPoids,
-    onChange: setFPoids
+    onChange: setFPoids,
+    height: data.grosBoutons ? 88 : 68,
+    fontSize: data.grosBoutons ? 42 : 34
   })), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-3 mb-3"
   }, /*#__PURE__*/React.createElement(Stepper, {
     label: "S\xE9ries",
     value: fSeries,
-    onChange: setFSeries
+    onChange: setFSeries,
+    big: data.grosBoutons
   }), /*#__PURE__*/React.createElement(Stepper, {
     label: "Reps",
     value: fReps,
     onChange: setFReps,
-    max: 50
+    max: 50,
+    big: data.grosBoutons
   })), fNom.trim().toLowerCase().includes("barre") && String(fPoids).trim() && !isNaN(parseFloat(String(fPoids).replace(",", "."))) && /*#__PURE__*/React.createElement("div", {
     className: "mb-3"
   }, /*#__PURE__*/React.createElement("button", {
@@ -6802,7 +6823,82 @@ function App() {
       border: `1px solid ${C.line}`,
       color: C.text
     }
-  }), [...data.seances].reverse().filter(s => {
+  }), data.seances.length > 3 && /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement(Chip, {
+    active: histoVue === "liste",
+    onClick: () => setHistoVue("liste")
+  }, "Liste"), /*#__PURE__*/React.createElement(Chip, {
+    active: histoVue === "calendrier",
+    onClick: () => setHistoVue("calendrier")
+  }, "Calendrier")), histoVue === "calendrier" && (() => {
+    const now = new Date();
+    const base = new Date(now.getFullYear(), now.getMonth() + calOffset, 1);
+    const y = base.getFullYear(),
+      m = base.getMonth();
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const startDow = (new Date(y, m, 1).getDay() + 6) % 7; // lundi = 0
+    const byDate = {};
+    data.seances.forEach(s => {
+      (byDate[s.date] = byDate[s.date] || []).push(s);
+    });
+    const cells = [...Array(startDow).fill(null), ...Array(daysInMonth)].map((_, i, arr) => i < startDow ? null : i - startDow + 1);
+    const label = base.toLocaleDateString("fr-FR", {
+      month: "long",
+      year: "numeric"
+    });
+    return /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center justify-between mb-3"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => setCalOffset(calOffset - 1),
+      className: "w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold",
+      style: {
+        background: C.card2,
+        color: C.text
+      }
+    }, "\u2039"), /*#__PURE__*/React.createElement("div", {
+      className: "text-sm font-bold capitalize"
+    }, label), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setCalOffset(Math.min(0, calOffset + 1)),
+      disabled: calOffset >= 0,
+      className: "w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold",
+      style: {
+        background: C.card2,
+        color: calOffset >= 0 ? C.hair : C.text
+      }
+    }, "\u203A")), /*#__PURE__*/React.createElement("div", {
+      className: "grid grid-cols-7 gap-1 text-center text-xs mb-1.5",
+      style: {
+        color: C.dim
+      }
+    }, ["L", "M", "M", "J", "V", "S", "D"].map((j, i) => /*#__PURE__*/React.createElement("div", {
+      key: i
+    }, j))), /*#__PURE__*/React.createElement("div", {
+      className: "grid grid-cols-7 gap-1"
+    }, cells.map((d, i) => {
+      if (d == null) return /*#__PURE__*/React.createElement("div", {
+        key: i
+      });
+      const iso = isoOf(new Date(y, m, d));
+      const seancesJour = byDate[iso] || [];
+      const has = seancesJour.length > 0;
+      return /*#__PURE__*/React.createElement("button", {
+        key: i,
+        onClick: () => {
+          if (has) {
+            setExpandedId(seancesJour[0].id);
+            setHistoVue("liste");
+          }
+        },
+        className: "aspect-square rounded-lg flex items-center justify-center text-xs font-semibold",
+        style: {
+          background: has ? "linear-gradient(180deg, rgba(245,197,24,.22), rgba(245,197,24,.08))" : "transparent",
+          border: `1px solid ${has ? "rgba(245,197,24,.4)" : C.hair}`,
+          color: has ? C.yellowDim : C.dim
+        }
+      }, d);
+    })));
+  })(), histoVue === "liste" && [...data.seances].reverse().filter(s => {
     const q = histoSearch.trim().toLowerCase();
     if (!q) return true;
     return s.nom.toLowerCase().includes(q) || s.exos.some(e => e.nom.toLowerCase().includes(q));
@@ -7799,51 +7895,123 @@ function App() {
         border: `1px solid ${C.hair}`
       }
     })), /*#__PURE__*/React.createElement("span", null, "+"))));
-  })(), progMode === "records" && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
-    className: "text-sm font-bold mb-2"
-  }, "Mur des records"), mursRecords.length === 0 ? /*#__PURE__*/React.createElement("div", {
-    className: "text-sm text-center py-6",
-    style: {
-      color: C.dim
-    }
-  }, "Pas encore de records \u2014 \xE7a vient.") : mursRecords.map(r => {
-    const rp = repereFor(r.nom, poidsCorps);
-    const niv = rp ? niveauPour(r.parBras ? r.poids * 2 : r.poids, rp.paliers) : null;
-    return /*#__PURE__*/React.createElement("div", {
-      key: r.nom,
-      className: "flex items-center gap-2 py-2",
+  })(), progMode === "records" && (() => {
+    const totalSeances = data.seances.length;
+    const tonnageTotal = data.seances.reduce((a, s) => a + tonnageSeance(s), 0);
+    const BADGES = [{
+      id: "debut",
+      label: "1ère séance",
+      icon: "🎬",
+      done: totalSeances >= 1
+    }, {
+      id: "s10",
+      label: "10 séances",
+      icon: "🔟",
+      done: totalSeances >= 10
+    }, {
+      id: "s50",
+      label: "50 séances",
+      icon: "💪",
+      done: totalSeances >= 50
+    }, {
+      id: "s100",
+      label: "100 séances",
+      icon: "💯",
+      done: totalSeances >= 100
+    }, {
+      id: "streak4",
+      label: "4 sem. streak",
+      icon: "🔥",
+      done: streak >= 4
+    }, {
+      id: "streak12",
+      label: "12 sem. streak",
+      icon: "🔥🔥",
+      done: streak >= 12
+    }, {
+      id: "tonne1",
+      label: "1 t soulevée",
+      icon: "🏋️",
+      done: tonnageTotal >= 1000
+    }, {
+      id: "tonne10",
+      label: "10 t soulevées",
+      icon: "🏆",
+      done: tonnageTotal >= 10000
+    }, {
+      id: "tonne100",
+      label: "100 t soulevées",
+      icon: "👑",
+      done: tonnageTotal >= 100000
+    }];
+    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+      className: "text-sm font-bold mb-3"
+    }, "Badges de paliers"), /*#__PURE__*/React.createElement("div", {
+      className: "grid grid-cols-3 gap-2.5"
+    }, BADGES.map(b => /*#__PURE__*/React.createElement("div", {
+      key: b.id,
+      className: "rounded-xl py-3 px-1 text-center",
       style: {
-        borderBottom: `1px solid ${C.line}`
+        background: b.done ? "linear-gradient(180deg, rgba(245,197,24,.16), rgba(245,197,24,.04))" : C.card2,
+        border: `1px solid ${b.done ? "rgba(245,197,24,.4)" : C.hair}`,
+        opacity: b.done ? 1 : 0.45
       }
-    }, /*#__PURE__*/React.createElement(Trophy, {
-      size: 14,
-      style: {
-        color: C.yellowDim
-      },
-      className: "shrink-0"
-    }), /*#__PURE__*/React.createElement("button", {
-      onClick: () => setFicheExo(r.nom),
-      className: "flex-1 min-w-0 text-left"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "text-sm font-semibold truncate"
-    }, r.nom), niv && /*#__PURE__*/React.createElement("div", {
-      className: "text-xs",
       style: {
-        color: niv.color
+        fontSize: 22,
+        filter: b.done ? "none" : "grayscale(1)"
       }
-    }, niv.label)), /*#__PURE__*/React.createElement("div", {
-      className: "text-sm font-bold shrink-0",
+    }, b.icon), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs mt-1 font-semibold leading-tight",
       style: {
-        ...NUMS,
-        color: C.yellowDim
+        color: b.done ? C.yellowDim : C.dim
       }
-    }, fmtKg(r.poids), " kg", r.parBras ? "/bras" : ""), /*#__PURE__*/React.createElement("div", {
-      className: "text-xs shrink-0",
+    }, b.label))))), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+      className: "text-sm font-bold mb-2"
+    }, "Mur des records"), mursRecords.length === 0 ? /*#__PURE__*/React.createElement("div", {
+      className: "text-sm text-center py-6",
       style: {
         color: C.dim
       }
-    }, fmtShort(r.date)));
-  })))), etatCopie && /*#__PURE__*/React.createElement("div", {
+    }, "Pas encore de records \u2014 \xE7a vient.") : mursRecords.map(r => {
+      const rp = repereFor(r.nom, poidsCorps);
+      const niv = rp ? niveauPour(r.parBras ? r.poids * 2 : r.poids, rp.paliers) : null;
+      return /*#__PURE__*/React.createElement("div", {
+        key: r.nom,
+        className: "flex items-center gap-2 py-2",
+        style: {
+          borderBottom: `1px solid ${C.line}`
+        }
+      }, /*#__PURE__*/React.createElement(Trophy, {
+        size: 14,
+        style: {
+          color: C.yellowDim
+        },
+        className: "shrink-0"
+      }), /*#__PURE__*/React.createElement("button", {
+        onClick: () => setFicheExo(r.nom),
+        className: "flex-1 min-w-0 text-left"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "text-sm font-semibold truncate"
+      }, r.nom), niv && /*#__PURE__*/React.createElement("div", {
+        className: "text-xs",
+        style: {
+          color: niv.color
+        }
+      }, niv.label)), /*#__PURE__*/React.createElement("div", {
+        className: "text-sm font-bold shrink-0",
+        style: {
+          ...NUMS,
+          color: C.yellowDim
+        }
+      }, fmtKg(r.poids), " kg", r.parBras ? "/bras" : ""), /*#__PURE__*/React.createElement("div", {
+        className: "text-xs shrink-0",
+        style: {
+          color: C.dim
+        }
+      }, fmtShort(r.date)));
+    })));
+  })())), etatCopie && /*#__PURE__*/React.createElement("div", {
     className: "fixed left-1/2 z-40 px-4 py-2 rounded-full text-xs font-bold text-center",
     style: {
       bottom: "8rem",
@@ -8195,14 +8363,17 @@ function App() {
       }
     }, "M\xEAme poids qu'avant (", fmtKg(histoOf(ec.nom).slice(-1)[0].poids), " kg)")), /*#__PURE__*/React.createElement(PoidsInput, {
       value: ecPoids,
-      onChange: setEcPoids
+      onChange: setEcPoids,
+      height: data.grosBoutons ? 88 : 68,
+      fontSize: data.grosBoutons ? 42 : 34
     }), /*#__PURE__*/React.createElement("div", {
       className: "flex gap-3 mt-3 mb-3"
     }, /*#__PURE__*/React.createElement(Stepper, {
       label: "Reps",
       value: ecReps,
       onChange: setEcReps,
-      max: 50
+      max: 50,
+      big: data.grosBoutons
     })), /*#__PURE__*/React.createElement("div", {
       className: "flex gap-2 mb-3"
     }, /*#__PURE__*/React.createElement("button", {
