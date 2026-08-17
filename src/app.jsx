@@ -3428,7 +3428,7 @@ function App() {
                 </Card>
 
                 {cycleDe(data).deload && (
-                  <div className="rounded-xl px-3 py-2 text-sm leading-relaxed" style={{ background: "#0f1f14", border: `1px solid ${C.green}`, color: C.green }}>
+                  <div className="rounded-xl px-3 py-2 text-sm leading-relaxed" style={{ background: "#eaf5ee", border: `1px solid ${C.green}`, color: C.green }}>
                     Semaine allégée : charges proposées à −10 % et 3 séries. C'est voulu, ne force pas.
                   </div>
                 )}
@@ -3860,7 +3860,7 @@ function App() {
                     )}
 
                     {stag && !isCardio && (
-                      <div className="rounded-xl px-3 py-2 mb-3 text-xs leading-relaxed" style={{ background: "#251418", border: `1px solid ${C.red}` }}>
+                      <div className="rounded-xl px-3 py-2 mb-3 text-xs leading-relaxed" style={{ background: "#fbeceb", border: `1px solid ${C.red}` }}>
                         <span style={{ color: C.red }}>Plateau détecté : 3 séances bloquées à {fmtKg(stag.poids)} kg.</span>{" "}
                         <span style={{ color: C.dim }}>Copie ton contexte depuis l'accueil et demande une stratégie à Claude.</span>
                       </div>
@@ -5829,8 +5829,15 @@ function App() {
               </div>
             )}
             <button
+              onClick={() => genererCarte(s)}
+              className="pl-tap mt-5 w-full rounded-2xl py-3.5 font-bold flex items-center justify-center gap-2"
+              style={{ maxWidth: 340, background: C.card, border: `1px solid ${C.line}`, color: C.yellowDim }}
+            >
+              <Camera size={15} /> Partager cette séance
+            </button>
+            <button
               onClick={() => setBilanSeance(null)}
-              className="pl-tap mt-7 w-full rounded-2xl py-4 font-black"
+              className="pl-tap mt-3 w-full rounded-2xl py-4 font-black"
               style={{ maxWidth: 340, background: C.yellow, color: "#111" }}
             >
               Terminé
