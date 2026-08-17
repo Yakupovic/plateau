@@ -2553,6 +2553,8 @@ function App() {
   const [plaquesOuvert, setPlaquesOuvert] = useState(false);
   const [barreKg, setBarreKg] = useState(20);
   const [fRpe, setFRpe] = useState(null);
+  const [fTempo, setFTempo] = useState("");
+  const [fSuperset, setFSuperset] = useState(false);
   const [ficheExo, setFicheExo] = useState(null);
   const [recupPlus, setRecupPlus] = useState(false);
   const [finOuvert, setFinOuvert] = useState(false);
@@ -3033,6 +3035,8 @@ function App() {
     setFTypeManuel(null);
     setFDistance("");
     setFNiveau("");
+    setFTempo("");
+    setFSuperset(false);
   };
   const onPhotoPicked = async ev => {
     const file = ev.target.files && ev.target.files[0];
@@ -3226,7 +3230,10 @@ function App() {
       photoId: fPhotoId,
       pr,
       at,
-      dureeMin: Math.max(1, Math.round((at - prevAt) / 60000))
+      dureeMin: Math.max(1, Math.round((at - prevAt) / 60000)),
+      tempo: fTempo.trim() || null,
+      superset: fSuperset && current.exos.length > 0,
+      supersetAvec: fSuperset && current.exos.length > 0 ? current.exos[current.exos.length - 1].id : null
     };
     const cur = {
       ...current,
@@ -3234,7 +3241,7 @@ function App() {
     };
     await saveCurrent(cur);
     resetForm();
-    startRest(fRepos);
+    if (!exo.superset) startRest(fRepos);
     lancerFeedback(exo, cur, pr, prevBest);
   };
 
@@ -6195,7 +6202,31 @@ function App() {
       color: fRpe === r ? "#111" : C.dim,
       border: `1px solid ${fRpe === r ? C.yellow : C.line}`
     }
-  }, r)))), /*#__PURE__*/React.createElement("button", {
+  }, r))), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs mb-1",
+    style: {
+      color: C.dim
+    }
+  }, "Tempo (optionnel, ex: 3-1-1)"), /*#__PURE__*/React.createElement("input", {
+    value: fTempo,
+    onChange: ev => setFTempo(ev.target.value),
+    placeholder: "descente-pause-mont\xE9e",
+    className: "w-full rounded-xl px-3 py-2.5 text-sm mb-4",
+    style: {
+      background: C.card2,
+      border: `1px solid ${C.line}`,
+      color: C.text,
+      ...NUMS
+    }
+  }), current && current.exos.length > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setFSuperset(!fSuperset),
+    className: "w-full rounded-xl py-3 mb-4 font-semibold text-sm flex items-center justify-center gap-2",
+    style: {
+      background: fSuperset ? C.yellow : C.card2,
+      color: fSuperset ? "#111" : C.text,
+      border: `1px solid ${fSuperset ? C.yellow : C.line}`
+    }
+  }, "\uD83D\uDD17 Encha\xEEn\xE9 avec ", current.exos[current.exos.length - 1].nom, " (sans repos)")), /*#__PURE__*/React.createElement("button", {
     onClick: validerExo,
     disabled: !fNom.trim() || !String(fPoids).trim(),
     className: "w-full rounded-xl py-4 text-lg font-black flex items-center justify-center gap-2",
@@ -6951,7 +6982,12 @@ function App() {
           ...NUMS,
           color: C.dim
         }
-      }, e.type === "cardio" ? `${e.dureeCardio} min${e.distance ? ` · ${fmtKg(e.distance)} km` : ""}${e.niveau ? ` · niveau ${e.niveau}` : ""}` : `${e.series}×${e.reps} @ ${fmtKg(e.poids)} kg${e.parBras ? "/bras" : ""}${e.reposSec ? ` · repos ${fmtRepos(e.reposSec)}` : ""}${e.dureeMin ? ` · ${e.dureeMin} min` : ""}`, e.note ? ` · ${e.note}` : ""), !enEdition && e.coach && /*#__PURE__*/React.createElement("div", {
+      }, e.type === "cardio" ? `${e.dureeCardio} min${e.distance ? ` · ${fmtKg(e.distance)} km` : ""}${e.niveau ? ` · niveau ${e.niveau}` : ""}` : `${e.series}×${e.reps} @ ${fmtKg(e.poids)} kg${e.parBras ? "/bras" : ""}${e.reposSec ? ` · repos ${fmtRepos(e.reposSec)}` : ""}${e.dureeMin ? ` · ${e.dureeMin} min` : ""}`, e.tempo ? ` · tempo ${e.tempo}` : "", e.note ? ` · ${e.note}` : ""), !enEdition && e.superset && /*#__PURE__*/React.createElement("div", {
+        className: "text-xs mt-0.5",
+        style: {
+          color: C.yellowDim
+        }
+      }, "\uD83D\uDD17 encha\xEEn\xE9 sans repos"), !enEdition && e.coach && /*#__PURE__*/React.createElement("div", {
         className: "text-xs mt-1",
         style: {
           color: C.yellowDim
