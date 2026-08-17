@@ -646,6 +646,11 @@ const salutation = () => {
   if (h < 22) return "Bonsoir";
   return "Bonne nuit";
 };
+const CITATIONS = ["La discipline bat la motivation, tous les jours.", "Une séance moyenne vaut mieux qu'une séance sautée.", "Le corps que tu veux se construit dans l'ennui du quotidien.", "Personne ne regrette une séance faite. Beaucoup regrettent celle qu'ils ont sautée.", "Progresser, c'est juste continuer un jour de plus que la veille.", "La forme suit la régularité, pas l'intensité.", "Tu n'as pas à être motivé. Juste à être présent.", "Chaque série compte, même celle où t'as pas envie.", "Le plus dur, c'est de mettre les chaussures. Après, ça roule.", "Ton seul adversaire, c'est la version de toi d'il y a un mois."];
+const citationDuJour = () => {
+  const jour = Math.floor(new Date(todayISO()).getTime() / 86400000);
+  return CITATIONS[jour % CITATIONS.length];
+};
 const OBJ_SEANCES_DEFAUT = 3; // objectif de séances par semaine par défaut
 const seancesCetteSemaine = d => {
   const cur = mondayOf(todayISO());
@@ -2578,6 +2583,7 @@ function App() {
 
   // Historique / progression / récup
   const [expandedId, setExpandedId] = useState(null);
+  const [histoSearch, setHistoSearch] = useState("");
   const [selExo, setSelExo] = useState("");
   const [progMode, setProgMode] = useState("exo"); // exo | corps | muscles
   const [progMensuZone, setProgMensuZone] = useState("Bras");
@@ -4200,6 +4206,31 @@ function App() {
       setExportText(txt);
     }
   };
+  const exporterCSV = () => {
+    const rows = [["date", "seance", "exercice", "serie", "poids_kg", "reps", "ressenti"]];
+    data.seances.forEach(s => {
+      s.exos.forEach(e => {
+        if (e.type === "cardio") {
+          rows.push([s.date, s.nom, e.nom, "", "", e.dureeCardio || "", e.ressenti || ""]);
+        } else {
+          const n = e.series || 0;
+          for (let i = 1; i <= n; i++) rows.push([s.date, s.nom, e.nom, i, e.poids, e.reps, e.ressenti || ""]);
+        }
+      });
+    });
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["﻿" + csv], {
+      type: "text/csv;charset=utf-8;"
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `plateau-export-${todayISO()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
   const importer = async () => {
     try {
       const obj = JSON.parse(importText);
@@ -4414,7 +4445,13 @@ function App() {
     weekday: "long",
     day: "numeric",
     month: "long"
-  }))), /*#__PURE__*/React.createElement("div", {
+  })), tab === "accueil" && /*#__PURE__*/React.createElement("div", {
+    className: "text-xs mt-1.5 italic",
+    style: {
+      color: C.dim,
+      maxWidth: 220
+    }
+  }, "\xAB ", citationDuJour(), " \xBB")), /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col items-end gap-1"
   }, clipState !== "idle" && data.prefAutoCopie === true && /*#__PURE__*/React.createElement("div", {
     className: "text-xs font-semibold",
@@ -5079,7 +5116,17 @@ function App() {
     }
   }, /*#__PURE__*/React.createElement(Upload, {
     size: 14
-  }), " Importer")), exportText && /*#__PURE__*/React.createElement("textarea", {
+  }), " Importer")), /*#__PURE__*/React.createElement("button", {
+    onClick: exporterCSV,
+    className: "w-full rounded-xl py-3 mt-2 font-semibold text-sm flex items-center justify-center gap-2",
+    style: {
+      background: C.card2,
+      border: `1px solid ${C.line}`,
+      color: C.text
+    }
+  }, /*#__PURE__*/React.createElement(Copy, {
+    size: 14
+  }), " Exporter en CSV (Excel/Sheets)"), exportText && /*#__PURE__*/React.createElement("textarea", {
     readOnly: true,
     value: exportText,
     onFocus: e => e.target.select(),
@@ -5537,11 +5584,17 @@ function App() {
   }, /*#__PURE__*/React.createElement(X, {
     size: 11
   })))), /*#__PURE__*/React.createElement("div", {
-    className: "text-xs mb-1.5 mt-3 font-semibold",
+    className: "text-xs mb-1.5 mt-3 font-semibold flex items-center justify-between",
     style: {
       color: C.dim
     }
-  }, "Poids s\xE9rie suivante (kg)"), /*#__PURE__*/React.createElement(PoidsInput, {
+  }, /*#__PURE__*/React.createElement("span", null, "Poids s\xE9rie suivante (kg)"), ec.sets.length === 0 && histoOf(ec.nom).length > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEcPoids(fmtKg(histoOf(ec.nom).slice(-1)[0].poids)),
+    className: "font-bold",
+    style: {
+      color: C.yellowDim
+    }
+  }, "M\xEAme poids qu'avant (", fmtKg(histoOf(ec.nom).slice(-1)[0].poids), " kg)")), /*#__PURE__*/React.createElement(PoidsInput, {
     value: ecPoids,
     onChange: setEcPoids
   }), /*#__PURE__*/React.createElement("div", {
@@ -6009,7 +6062,13 @@ function App() {
     }
   }, "/bras")), /*#__PURE__*/React.createElement("div", {
     className: "mb-3"
-  }, /*#__PURE__*/React.createElement(PoidsInput, {
+  }, !editExoId && !String(fPoids).trim() && sugg && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setFPoids(fmtKg(sugg.last.poids)),
+    className: "text-xs font-bold mb-1.5",
+    style: {
+      color: C.yellowDim
+    }
+  }, "M\xEAme poids qu'avant (", fmtKg(sugg.last.poids), " kg)"), /*#__PURE__*/React.createElement(PoidsInput, {
     value: fPoids,
     onChange: setFPoids
   })), /*#__PURE__*/React.createElement("div", {
@@ -6733,7 +6792,21 @@ function App() {
     size: 12
   })))))), tab === "historique" && /*#__PURE__*/React.createElement("div", {
     className: "space-y-3 pl-anim"
-  }, [...data.seances].reverse().map(s => {
+  }, data.seances.length > 3 && /*#__PURE__*/React.createElement("input", {
+    value: histoSearch,
+    onChange: ev => setHistoSearch(ev.target.value),
+    placeholder: "\uD83D\uDD0D Chercher un exercice ou une s\xE9ance\u2026",
+    className: "w-full rounded-xl px-3.5 h-11 text-sm",
+    style: {
+      background: C.card,
+      border: `1px solid ${C.line}`,
+      color: C.text
+    }
+  }), [...data.seances].reverse().filter(s => {
+    const q = histoSearch.trim().toLowerCase();
+    if (!q) return true;
+    return s.nom.toLowerCase().includes(q) || s.exos.some(e => e.nom.toLowerCase().includes(q));
+  }).map(s => {
     const open = expandedId === s.id;
     return /*#__PURE__*/React.createElement(Card, {
       key: s.id
@@ -7456,7 +7529,45 @@ function App() {
     }, recordsAn), " records personnels battus")));
   })(), progMode === "volume" && (() => {
     const vol = volumeSemaines(data, 8);
-    return /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+    const moisKey = iso => iso.slice(0, 7);
+    const now = new Date();
+    const moisActuel = moisKey(todayISO());
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const moisPrecedent = moisKey(isoOf(prev));
+    const sMois = data.seances.filter(s => moisKey(s.date) === moisActuel);
+    const sMoisPrec = data.seances.filter(s => moisKey(s.date) === moisPrecedent);
+    const tMois = sMois.reduce((a, s) => a + tonnageSeance(s), 0);
+    const tMoisPrec = sMoisPrec.reduce((a, s) => a + tonnageSeance(s), 0);
+    const deltaT = tMoisPrec > 0 ? Math.round((tMois - tMoisPrec) / tMoisPrec * 100) : null;
+    return /*#__PURE__*/React.createElement(React.Fragment, null, sMoisPrec.length > 0 && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+      className: "text-sm font-bold mb-2"
+    }, "Ce mois vs mois dernier"), /*#__PURE__*/React.createElement("div", {
+      className: "grid grid-cols-2 gap-3"
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      className: "text-xl",
+      style: {
+        ...DISPLAY,
+        ...NUMS,
+        color: C.text
+      }
+    }, sMois.length), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs",
+      style: {
+        color: C.dim
+      }
+    }, "s\xE9ances (vs ", sMoisPrec.length, ")")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      className: "text-xl",
+      style: {
+        ...DISPLAY,
+        ...NUMS,
+        color: deltaT != null && deltaT >= 0 ? C.green : C.text
+      }
+    }, tMois.toLocaleString("fr-FR"), " kg"), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs",
+      style: {
+        color: C.dim
+      }
+    }, deltaT != null ? `${deltaT >= 0 ? "+" : ""}${deltaT}% vs mois dernier` : "tonnage soulevé")))), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
       className: "text-sm font-bold mb-1"
     }, "Volume total soulev\xE9, par semaine"), /*#__PURE__*/React.createElement("div", {
       className: "text-xs mb-3",
@@ -7473,7 +7584,7 @@ function App() {
       dataKey: "kg",
       color: C.yellow,
       height: 220
-    }));
+    })));
   })(), progMode === "retro" && (() => {
     const an = new Date().getFullYear();
     const sAn = data.seances.filter(s => s.date.startsWith(String(an)));
@@ -8072,11 +8183,17 @@ function App() {
         color: "#111"
       }
     }, "Passer"))), /*#__PURE__*/React.createElement("div", {
-      className: "text-xs mb-1.5 font-semibold",
+      className: "text-xs mb-1.5 font-semibold flex items-center justify-between",
       style: {
         color: C.dim
       }
-    }, "Poids (kg)"), /*#__PURE__*/React.createElement(PoidsInput, {
+    }, /*#__PURE__*/React.createElement("span", null, "Poids (kg)"), ec.sets.length === 0 && histoOf(ec.nom).length > 0 && /*#__PURE__*/React.createElement("button", {
+      onClick: () => setEcPoids(fmtKg(histoOf(ec.nom).slice(-1)[0].poids)),
+      className: "font-bold",
+      style: {
+        color: C.yellowDim
+      }
+    }, "M\xEAme poids qu'avant (", fmtKg(histoOf(ec.nom).slice(-1)[0].poids), " kg)")), /*#__PURE__*/React.createElement(PoidsInput, {
       value: ecPoids,
       onChange: setEcPoids
     }), /*#__PURE__*/React.createElement("div", {

@@ -511,6 +511,22 @@ const salutation = () => {
   if (h < 22) return "Bonsoir";
   return "Bonne nuit";
 };
+const CITATIONS = [
+  "La discipline bat la motivation, tous les jours.",
+  "Une séance moyenne vaut mieux qu'une séance sautée.",
+  "Le corps que tu veux se construit dans l'ennui du quotidien.",
+  "Personne ne regrette une séance faite. Beaucoup regrettent celle qu'ils ont sautée.",
+  "Progresser, c'est juste continuer un jour de plus que la veille.",
+  "La forme suit la régularité, pas l'intensité.",
+  "Tu n'as pas à être motivé. Juste à être présent.",
+  "Chaque série compte, même celle où t'as pas envie.",
+  "Le plus dur, c'est de mettre les chaussures. Après, ça roule.",
+  "Ton seul adversaire, c'est la version de toi d'il y a un mois.",
+];
+const citationDuJour = () => {
+  const jour = Math.floor(new Date(todayISO()).getTime() / 86400000);
+  return CITATIONS[jour % CITATIONS.length];
+};
 const OBJ_SEANCES_DEFAUT = 3; // objectif de séances par semaine par défaut
 const seancesCetteSemaine = (d) => {
   const cur = mondayOf(todayISO());
@@ -1429,6 +1445,7 @@ function App() {
 
   // Historique / progression / récup
   const [expandedId, setExpandedId] = useState(null);
+  const [histoSearch, setHistoSearch] = useState("");
   const [selExo, setSelExo] = useState("");
   const [progMode, setProgMode] = useState("exo"); // exo | corps | muscles
   const [progMensuZone, setProgMensuZone] = useState("Bras");
@@ -2668,6 +2685,26 @@ function App() {
       setExportText(txt);
     }
   };
+  const exporterCSV = () => {
+    const rows = [["date", "seance", "exercice", "serie", "poids_kg", "reps", "ressenti"]];
+    data.seances.forEach((s) => {
+      s.exos.forEach((e) => {
+        if (e.type === "cardio") {
+          rows.push([s.date, s.nom, e.nom, "", "", e.dureeCardio || "", e.ressenti || ""]);
+        } else {
+          const n = e.series || 0;
+          for (let i = 1; i <= n; i++) rows.push([s.date, s.nom, e.nom, i, e.poids, e.reps, e.ressenti || ""]);
+        }
+      });
+    });
+    const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `plateau-export-${todayISO()}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
   const importer = async () => {
     try {
       const obj = JSON.parse(importText);
@@ -2853,6 +2890,9 @@ function App() {
               {" · "}
               {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
             </div>
+            {tab === "accueil" && (
+              <div className="text-xs mt-1.5 italic" style={{ color: C.dim, maxWidth: 220 }}>« {citationDuJour()} »</div>
+            )}
           </div>
           <div className="flex flex-col items-end gap-1">
             {clipState !== "idle" && data.prefAutoCopie === true && (
@@ -3329,6 +3369,13 @@ function App() {
                   <Upload size={14} /> Importer
                 </button>
               </div>
+              <button
+                onClick={exporterCSV}
+                className="w-full rounded-xl py-3 mt-2 font-semibold text-sm flex items-center justify-center gap-2"
+                style={{ background: C.card2, border: `1px solid ${C.line}`, color: C.text }}
+              >
+                <Copy size={14} /> Exporter en CSV (Excel/Sheets)
+              </button>
               {exportText && (
                 <textarea
                   readOnly
@@ -3698,7 +3745,14 @@ function App() {
                       </div>
                     ))}
 
-                    <div className="text-xs mb-1.5 mt-3 font-semibold" style={{ color: C.dim }}>Poids série suivante (kg)</div>
+                    <div className="text-xs mb-1.5 mt-3 font-semibold flex items-center justify-between" style={{ color: C.dim }}>
+                      <span>Poids série suivante (kg)</span>
+                      {ec.sets.length === 0 && histoOf(ec.nom).length > 0 && (
+                        <button onClick={() => setEcPoids(fmtKg(histoOf(ec.nom).slice(-1)[0].poids))} className="font-bold" style={{ color: C.yellowDim }}>
+                          Même poids qu'avant ({fmtKg(histoOf(ec.nom).slice(-1)[0].poids)} kg)
+                        </button>
+                      )}
+                    </div>
                     <PoidsInput value={ecPoids} onChange={setEcPoids} />
                     <div className="flex gap-3 mt-3 mb-3">
                       <Stepper label="Reps" value={ecReps} onChange={setEcReps} max={50} />
@@ -4081,6 +4135,15 @@ function App() {
                       </button>
                     </div>
                     <div className="mb-3">
+                      {!editExoId && !String(fPoids).trim() && sugg && (
+                        <button
+                          onClick={() => setFPoids(fmtKg(sugg.last.poids))}
+                          className="text-xs font-bold mb-1.5"
+                          style={{ color: C.yellowDim }}
+                        >
+                          Même poids qu'avant ({fmtKg(sugg.last.poids)} kg)
+                        </button>
+                      )}
                       <PoidsInput value={fPoids} onChange={setFPoids} />
                     </div>
 
@@ -4616,7 +4679,20 @@ function App() {
         {/* ————— HISTORIQUE ————— */}
         {tab === "historique" && (
           <div className="space-y-3 pl-anim">
-            {[...data.seances].reverse().map((s) => {
+            {data.seances.length > 3 && (
+              <input
+                value={histoSearch}
+                onChange={(ev) => setHistoSearch(ev.target.value)}
+                placeholder="🔍 Chercher un exercice ou une séance…"
+                className="w-full rounded-xl px-3.5 h-11 text-sm"
+                style={{ background: C.card, border: `1px solid ${C.line}`, color: C.text }}
+              />
+            )}
+            {[...data.seances].reverse().filter((s) => {
+              const q = histoSearch.trim().toLowerCase();
+              if (!q) return true;
+              return s.nom.toLowerCase().includes(q) || s.exos.some((e) => e.nom.toLowerCase().includes(q));
+            }).map((s) => {
               const open = expandedId === s.id;
               return (
                 <Card key={s.id}>
@@ -5131,20 +5207,51 @@ function App() {
 
             {progMode === "volume" && (() => {
               const vol = volumeSemaines(data, 8);
+              const moisKey = (iso) => iso.slice(0, 7);
+              const now = new Date();
+              const moisActuel = moisKey(todayISO());
+              const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+              const moisPrecedent = moisKey(isoOf(prev));
+              const sMois = data.seances.filter((s) => moisKey(s.date) === moisActuel);
+              const sMoisPrec = data.seances.filter((s) => moisKey(s.date) === moisPrecedent);
+              const tMois = sMois.reduce((a, s) => a + tonnageSeance(s), 0);
+              const tMoisPrec = sMoisPrec.reduce((a, s) => a + tonnageSeance(s), 0);
+              const deltaT = tMoisPrec > 0 ? Math.round(((tMois - tMoisPrec) / tMoisPrec) * 100) : null;
               return (
-                <Card>
-                  <div className="text-sm font-bold mb-1">Volume total soulevé, par semaine</div>
-                  <div className="text-xs mb-3" style={{ color: C.dim }}>
-                    Toutes séances confondues — la tendance de fond compte plus qu'une semaine isolée.
-                  </div>
-                  {vol.length < 2 ? (
-                    <div className="text-sm text-center py-8" style={{ color: C.dim }}>
-                      Pas encore assez de semaines pour une courbe — reviens dans quelques séances.
-                    </div>
-                  ) : (
-                    <MiniLine data={vol} dataKey="kg" color={C.yellow} height={220} />
+                <>
+                  {sMoisPrec.length > 0 && (
+                    <Card>
+                      <div className="text-sm font-bold mb-2">Ce mois vs mois dernier</div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <div className="text-xl" style={{ ...DISPLAY, ...NUMS, color: C.text }}>{sMois.length}</div>
+                          <div className="text-xs" style={{ color: C.dim }}>séances (vs {sMoisPrec.length})</div>
+                        </div>
+                        <div>
+                          <div className="text-xl" style={{ ...DISPLAY, ...NUMS, color: deltaT != null && deltaT >= 0 ? C.green : C.text }}>
+                            {tMois.toLocaleString("fr-FR")} kg
+                          </div>
+                          <div className="text-xs" style={{ color: C.dim }}>
+                            {deltaT != null ? `${deltaT >= 0 ? "+" : ""}${deltaT}% vs mois dernier` : "tonnage soulevé"}
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
                   )}
-                </Card>
+                  <Card>
+                    <div className="text-sm font-bold mb-1">Volume total soulevé, par semaine</div>
+                    <div className="text-xs mb-3" style={{ color: C.dim }}>
+                      Toutes séances confondues — la tendance de fond compte plus qu'une semaine isolée.
+                    </div>
+                    {vol.length < 2 ? (
+                      <div className="text-sm text-center py-8" style={{ color: C.dim }}>
+                        Pas encore assez de semaines pour une courbe — reviens dans quelques séances.
+                      </div>
+                    ) : (
+                      <MiniLine data={vol} dataKey="kg" color={C.yellow} height={220} />
+                    )}
+                  </Card>
+                </>
               );
             })()}
 
@@ -5555,7 +5662,14 @@ function App() {
                 )}
               </div>
 
-              <div className="text-xs mb-1.5 font-semibold" style={{ color: C.dim }}>Poids (kg)</div>
+              <div className="text-xs mb-1.5 font-semibold flex items-center justify-between" style={{ color: C.dim }}>
+                <span>Poids (kg)</span>
+                {ec.sets.length === 0 && histoOf(ec.nom).length > 0 && (
+                  <button onClick={() => setEcPoids(fmtKg(histoOf(ec.nom).slice(-1)[0].poids))} className="font-bold" style={{ color: C.yellowDim }}>
+                    Même poids qu'avant ({fmtKg(histoOf(ec.nom).slice(-1)[0].poids)} kg)
+                  </button>
+                )}
+              </div>
               <PoidsInput value={ecPoids} onChange={setEcPoids} />
               <div className="flex gap-3 mt-3 mb-3">
                 <Stepper label="Reps" value={ecReps} onChange={setEcReps} max={50} />
