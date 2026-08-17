@@ -1027,10 +1027,10 @@ const REPERES = {
   elevation: { m: [0.18, 0.28, 0.4, 0.54], machine: false },
 };
 const NIVEAUX = [
-  { seuil: 3, label: "Avancé", color: "#a78bfa" },
-  { seuil: 2, label: "Intermédiaire", color: "#4ade80" },
-  { seuil: 1, label: "Novice", color: "#f5c518" },
-  { seuil: 0, label: "Débutant", color: "#9ca3af" },
+  { seuil: 3, label: "Avancé", color: "#7c5cd6" },
+  { seuil: 2, label: "Intermédiaire", color: "#178a4c" },
+  { seuil: 1, label: "Novice", color: "#8a5b00" },
+  { seuil: 0, label: "Débutant", color: "#5b6472" },
 ];
 const repereFor = (nom, poidsCorps) => {
   const k = mouvementOf(nom);
@@ -1040,7 +1040,7 @@ const repereFor = (nom, poidsCorps) => {
 };
 const niveauPour = (charge, paliers) => {
   for (const n of NIVEAUX) if (charge >= paliers[n.seuil]) return n;
-  return { seuil: -1, label: "En construction", color: "#f59e0b" };
+  return { seuil: -1, label: "En construction", color: "#b45309" };
 };
 
 // ————— Petits composants —————
@@ -1081,23 +1081,6 @@ function CountUp({ value, decimals = 0, className, style, dur = 900 }) {
     ? (Math.round(n * 10 ** decimals) / 10 ** decimals).toLocaleString("fr-FR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
     : Math.round(n).toLocaleString("fr-FR");
   return <span className={className} style={style}>{shown}</span>;
-}
-
-// Barre de volume qui se remplit à l'apparition
-function VolBar({ pct, over, target }) {
-  const [w, setW] = useState(0);
-  useEffect(() => {
-    const rm = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (rm) { setW(pct); return; }
-    const id = requestAnimationFrame(() => setW(pct));
-    return () => cancelAnimationFrame(id);
-  }, [pct]);
-  return (
-    <div className="pl-track">
-      <div className={"pl-fill" + (over ? " over" : "")} style={{ width: Math.max(0, Math.min(100, w)) + "%" }} />
-      {target != null && <div className="pl-target" style={{ left: Math.max(0, Math.min(100, target)) + "%" }} />}
-    </div>
-  );
 }
 
 // Anneau de progression (objectif hebdo)
@@ -2114,7 +2097,7 @@ function App() {
     let next = { ...data, seances: [...data.seances, seance] };
     if (next.prochaine && next.prochaine.date <= todayISO()) next = { ...next, prochaine: null };
     try {
-      navigator.clipboard.writeText(JSON.stringify(next, null, 2));
+      await navigator.clipboard.writeText(JSON.stringify(next, null, 2));
       setFinJsonCopie(true);
       setTimeout(() => setFinJsonCopie(false), 9000);
     } catch {}
@@ -2828,11 +2811,6 @@ function App() {
           -webkit-mask-image: linear-gradient(90deg, transparent, #000 42%); mask-image: linear-gradient(90deg, transparent, #000 42%); }
 
         /* Barres de volume */
-        .pl-track { position: relative; height: 9px; border-radius: 6px; background: #e7e3d6; overflow: hidden; }
-        .pl-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: linear-gradient(90deg, ${C.yellow}, ${C.yellowHi}); transition: width 1s cubic-bezier(.2,.7,.2,1); }
-        .pl-fill.over { background: linear-gradient(90deg, ${C.red}, #ffa06b); }
-        .pl-target { position: absolute; top: -3px; bottom: -3px; width: 2px; background: rgba(20,16,8,.4); border-radius: 2px; }
-
         /* Barre d'onglets flottante */
         .pl-tabbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; z-index: 40; width: 100%; max-width: 28rem;
           display: flex; padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
@@ -2856,7 +2834,6 @@ function App() {
 
         @media (prefers-reduced-motion: reduce) {
           .pl-anim > *, .pl-hero-glow, .pl-live, .pl-atoi, .pl-go, .pl-flash { animation: none !important; opacity: 1 !important; transform: none !important; }
-          .pl-fill { transition: none; }
           .pl-confetti { display: none; }
         }
       `}</style>
@@ -4210,12 +4187,12 @@ function App() {
                   <Card>
                     <div className="flex items-center justify-between mb-1">
                       <div className="font-bold text-sm">Validé aujourd'hui ({current.exos.length})</div>
-                      <div className="text-xs font-bold" style={{ ...NUMS, color: seriesJour >= 24 ? C.red : seriesJour >= 18 ? "#f59e0b" : C.dim }}>
+                      <div className="text-xs font-bold" style={{ ...NUMS, color: seriesJour >= 24 ? C.red : seriesJour >= 18 ? "#b45309" : C.dim }}>
                         {seriesJour} séries
                       </div>
                     </div>
                     {seriesJour >= 18 && (
-                      <div className="text-xs mb-2 leading-relaxed" style={{ color: seriesJour >= 24 ? C.red : "#f59e0b" }}>
+                      <div className="text-xs mb-2 leading-relaxed" style={{ color: seriesJour >= 24 ? C.red : "#b45309" }}>
                         {seriesJour >= 24
                           ? "Volume très élevé pour une séance — au-delà, tu accumules surtout de la fatigue."
                           : "Volume déjà solide — 16 à 20 séries par séance suffisent pour progresser."}
@@ -5034,7 +5011,7 @@ function App() {
                     }
                     const total = e.a + e.b;
                     const pctA = (e.a / total) * 100;
-                    const coul = e.etat === "ok" ? C.green : "#f59e0b";
+                    const coul = e.etat === "ok" ? C.green : "#b45309";
                     return (
                       <div key={e.label} className="py-2" style={{ borderTop: `1px solid ${C.line}` }}>
                         <div className="flex items-center justify-between text-sm mb-1">
@@ -5117,7 +5094,7 @@ function App() {
                       </div>
                     </div>
                     {negliges.length > 0 ? (
-                      <div className="text-sm" style={{ color: "#f59e0b" }}>
+                      <div className="text-sm" style={{ color: "#b45309" }}>
                         Négligés ce mois-ci (30 j) : {negliges.join(", ")}.
                       </div>
                     ) : (

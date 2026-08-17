@@ -1940,19 +1940,19 @@ const REPERES = {
 const NIVEAUX = [{
   seuil: 3,
   label: "Avancé",
-  color: "#a78bfa"
+  color: "#7c5cd6"
 }, {
   seuil: 2,
   label: "Intermédiaire",
-  color: "#4ade80"
+  color: "#178a4c"
 }, {
   seuil: 1,
   label: "Novice",
-  color: "#f5c518"
+  color: "#8a5b00"
 }, {
   seuil: 0,
   label: "Débutant",
-  color: "#9ca3af"
+  color: "#5b6472"
 }];
 const repereFor = (nom, poidsCorps) => {
   const k = mouvementOf(nom);
@@ -1968,7 +1968,7 @@ const niveauPour = (charge, paliers) => {
   return {
     seuil: -1,
     label: "En construction",
-    color: "#f59e0b"
+    color: "#b45309"
   };
 };
 
@@ -2029,37 +2029,6 @@ function CountUp({
     className: className,
     style: style
   }, shown);
-}
-
-// Barre de volume qui se remplit à l'apparition
-function VolBar({
-  pct,
-  over,
-  target
-}) {
-  const [w, setW] = useState(0);
-  useEffect(() => {
-    const rm = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (rm) {
-      setW(pct);
-      return;
-    }
-    const id = requestAnimationFrame(() => setW(pct));
-    return () => cancelAnimationFrame(id);
-  }, [pct]);
-  return /*#__PURE__*/React.createElement("div", {
-    className: "pl-track"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pl-fill" + (over ? " over" : ""),
-    style: {
-      width: Math.max(0, Math.min(100, w)) + "%"
-    }
-  }), target != null && /*#__PURE__*/React.createElement("div", {
-    className: "pl-target",
-    style: {
-      left: Math.max(0, Math.min(100, target)) + "%"
-    }
-  }));
 }
 
 // Anneau de progression (objectif hebdo)
@@ -3461,7 +3430,7 @@ function App() {
       prochaine: null
     };
     try {
-      navigator.clipboard.writeText(JSON.stringify(next, null, 2));
+      await navigator.clipboard.writeText(JSON.stringify(next, null, 2));
       setFinJsonCopie(true);
       setTimeout(() => setFinJsonCopie(false), 9000);
     } catch {}
@@ -4381,11 +4350,6 @@ function App() {
           -webkit-mask-image: linear-gradient(90deg, transparent, #000 42%); mask-image: linear-gradient(90deg, transparent, #000 42%); }
 
         /* Barres de volume */
-        .pl-track { position: relative; height: 9px; border-radius: 6px; background: #e7e3d6; overflow: hidden; }
-        .pl-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: linear-gradient(90deg, ${C.yellow}, ${C.yellowHi}); transition: width 1s cubic-bezier(.2,.7,.2,1); }
-        .pl-fill.over { background: linear-gradient(90deg, ${C.red}, #ffa06b); }
-        .pl-target { position: absolute; top: -3px; bottom: -3px; width: 2px; background: rgba(20,16,8,.4); border-radius: 2px; }
-
         /* Barre d'onglets flottante */
         .pl-tabbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; z-index: 40; width: 100%; max-width: 28rem;
           display: flex; padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
@@ -4409,7 +4373,6 @@ function App() {
 
         @media (prefers-reduced-motion: reduce) {
           .pl-anim > *, .pl-hero-glow, .pl-live, .pl-atoi, .pl-go, .pl-flash { animation: none !important; opacity: 1 !important; transform: none !important; }
-          .pl-fill { transition: none; }
           .pl-confetti { display: none; }
         }
       `), /*#__PURE__*/React.createElement("div", {
@@ -6149,12 +6112,12 @@ function App() {
     className: "text-xs font-bold",
     style: {
       ...NUMS,
-      color: seriesJour >= 24 ? C.red : seriesJour >= 18 ? "#f59e0b" : C.dim
+      color: seriesJour >= 24 ? C.red : seriesJour >= 18 ? "#b45309" : C.dim
     }
   }, seriesJour, " s\xE9ries")), seriesJour >= 18 && /*#__PURE__*/React.createElement("div", {
     className: "text-xs mb-2 leading-relaxed",
     style: {
-      color: seriesJour >= 24 ? C.red : "#f59e0b"
+      color: seriesJour >= 24 ? C.red : "#b45309"
     }
   }, seriesJour >= 24 ? "Volume très élevé pour une séance — au-delà, tu accumules surtout de la fatigue." : "Volume déjà solide — 16 à 20 séries par séance suffisent pour progresser."), [...current.exos].reverse().map(e => /*#__PURE__*/React.createElement("div", {
     key: e.id,
@@ -7315,7 +7278,7 @@ function App() {
     }
     const total = e.a + e.b;
     const pctA = e.a / total * 100;
-    const coul = e.etat === "ok" ? C.green : "#f59e0b";
+    const coul = e.etat === "ok" ? C.green : "#b45309";
     return /*#__PURE__*/React.createElement("div", {
       key: e.label,
       className: "py-2",
@@ -7445,7 +7408,7 @@ function App() {
     }, "poids de corps"))), negliges.length > 0 ? /*#__PURE__*/React.createElement("div", {
       className: "text-sm",
       style: {
-        color: "#f59e0b"
+        color: "#b45309"
       }
     }, "N\xE9glig\xE9s ce mois-ci (30 j) : ", negliges.join(", "), ".") : /*#__PURE__*/React.createElement("div", {
       className: "text-sm",
