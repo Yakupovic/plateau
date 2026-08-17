@@ -3429,6 +3429,10 @@ function App() {
       ...next,
       prochaine: null
     };
+    next = {
+      ...next,
+      dernierExport: todayISO()
+    };
     try {
       await navigator.clipboard.writeText(JSON.stringify(next, null, 2));
       setFinJsonCopie(true);
@@ -4183,6 +4187,10 @@ function App() {
   };
   const exporter = async () => {
     const txt = JSON.stringify(exportPayload(), null, 2);
+    saveData({
+      ...data,
+      dernierExport: todayISO()
+    });
     try {
       await navigator.clipboard.writeText(txt);
       setCopieOk(true);
@@ -4426,7 +4434,7 @@ function App() {
   }), " S\xE9ance \xB7 ", elapsedTxt))), storageOk === false && /*#__PURE__*/React.createElement("div", {
     className: "rounded-xl px-3 py-2 mb-3 text-xs font-semibold leading-relaxed",
     style: {
-      background: "#2a1518",
+      background: "#fbeceb",
       border: `1px solid ${C.red}`,
       color: C.red
     }
@@ -4486,7 +4494,14 @@ function App() {
       ...NUMS,
       opacity: .78
     }
-  }, elapsedTxt, " \xE9coul\xE9es")), /*#__PURE__*/React.createElement(Card, {
+  }, elapsedTxt, " \xE9coul\xE9es")), !current && reposDepuis != null && reposDepuis >= 4 && /*#__PURE__*/React.createElement("div", {
+    className: "rounded-xl px-3 py-2 text-xs font-semibold",
+    style: {
+      background: "#fff6e0",
+      border: `1px solid ${C.yellow}`,
+      color: C.yellowDim
+    }
+  }, "\uD83D\uDE34 \xC7a fait ", reposDepuis, " jours \u2014 ", data.prochaine ? `${data.prochaine.nom} t'attend` : "prêt à repartir ?"), /*#__PURE__*/React.createElement(Card, {
     onClick: definirObjSeances,
     className: "pl-tap flex items-center gap-4"
   }, /*#__PURE__*/React.createElement(Ring, {
@@ -4872,7 +4887,13 @@ function App() {
     style: {
       color: C.dim
     }
-  }, "\u2696\uFE0F ", dernierPoids ? `Dernière pesée il y a ${joursDepuis(dernierPoids.date)} j` : "Aucune pesée enregistrée", " \u2014 passe sur la balance \u2192"), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+  }, "\u2696\uFE0F ", dernierPoids ? `Dernière pesée il y a ${joursDepuis(dernierPoids.date)} j` : "Aucune pesée enregistrée", " \u2014 passe sur la balance \u2192"), data.seances.length > 0 && (!data.dernierExport || joursDepuis(data.dernierExport) >= 14) && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setReglagesOuvert(true),
+    className: "w-full text-left text-xs px-1",
+    style: {
+      color: C.dim
+    }
+  }, "\uD83D\uDCBE ", data.dernierExport ? `Dernière sauvegarde il y a ${joursDepuis(data.dernierExport)} j` : "Aucune sauvegarde faite", " \u2014 tes s\xE9ances ne vivent que sur ce t\xE9l\xE9phone \u2192"), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "font-bold text-sm"

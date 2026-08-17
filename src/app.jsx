@@ -2096,6 +2096,7 @@ function App() {
     };
     let next = { ...data, seances: [...data.seances, seance] };
     if (next.prochaine && next.prochaine.date <= todayISO()) next = { ...next, prochaine: null };
+    next = { ...next, dernierExport: todayISO() };
     try {
       await navigator.clipboard.writeText(JSON.stringify(next, null, 2));
       setFinJsonCopie(true);
@@ -2657,6 +2658,7 @@ function App() {
   };
   const exporter = async () => {
     const txt = JSON.stringify(exportPayload(), null, 2);
+    saveData({ ...data, dernierExport: todayISO() });
     try {
       await navigator.clipboard.writeText(txt);
       setCopieOk(true);
@@ -2873,7 +2875,7 @@ function App() {
         {storageOk === false && (
           <div
             className="rounded-xl px-3 py-2 mb-3 text-xs font-semibold leading-relaxed"
-            style={{ background: "#2a1518", border: `1px solid ${C.red}`, color: C.red }}
+            style={{ background: "#fbeceb", border: `1px solid ${C.red}`, color: C.red }}
           >
             Stockage inaccessible (navigation privée ?). Active « Copie auto » dans Mes données
             pour garder une sauvegarde dans ton presse-papier.
@@ -2910,6 +2912,15 @@ function App() {
                 <div className="text-3xl leading-none mt-1" style={DISPLAY}>Reprendre · {current.nom}</div>
                 <div className="text-sm font-bold mt-2" style={{ ...NUMS, opacity: .78 }}>{elapsedTxt} écoulées</div>
               </button>
+            )}
+
+            {!current && reposDepuis != null && reposDepuis >= 4 && (
+              <div
+                className="rounded-xl px-3 py-2 text-xs font-semibold"
+                style={{ background: "#fff6e0", border: `1px solid ${C.yellow}`, color: C.yellowDim }}
+              >
+                😴 Ça fait {reposDepuis} jours — {data.prochaine ? `${data.prochaine.nom} t'attend` : "prêt à repartir ?"}
+              </div>
             )}
 
             {/* Objectif de la semaine */}
@@ -3171,6 +3182,12 @@ function App() {
             {(!dernierPoids || joursDepuis(dernierPoids.date) >= 7) && (
               <button onClick={() => setTab("recup")} className="w-full text-left text-xs px-1" style={{ color: C.dim }}>
                 ⚖️ {dernierPoids ? `Dernière pesée il y a ${joursDepuis(dernierPoids.date)} j` : "Aucune pesée enregistrée"} — passe sur la balance →
+              </button>
+            )}
+
+            {data.seances.length > 0 && (!data.dernierExport || joursDepuis(data.dernierExport) >= 14) && (
+              <button onClick={() => setReglagesOuvert(true)} className="w-full text-left text-xs px-1" style={{ color: C.dim }}>
+                💾 {data.dernierExport ? `Dernière sauvegarde il y a ${joursDepuis(data.dernierExport)} j` : "Aucune sauvegarde faite"} — tes séances ne vivent que sur ce téléphone →
               </button>
             )}
 
