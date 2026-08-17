@@ -338,6 +338,17 @@ const objectifsText = (d) => {
 };
 
 // ————— Stagnation, cibles, échauffement de séance —————
+const EQUIPEMENTS_EXO = ["barre", "haltères", "haltere", "machine guidée", "machine", "poulie", "élastique", "smith", "guidé", "guidée"];
+const variantesPour = (nom) => {
+  const low = nom.toLowerCase();
+  let base = nom;
+  EQUIPEMENTS_EXO.forEach((eq) => { base = base.replace(new RegExp(eq, "gi"), ""); });
+  base = base.replace(/\s+/g, " ").trim();
+  if (!base) return [];
+  const present = EQUIPEMENTS_EXO.find((eq) => low.includes(eq)) || null;
+  const alternatives = ["haltères", "poulie", "machine guidée"].filter((eq) => eq !== present);
+  return alternatives.slice(0, 3).map((eq) => `${base} ${eq}`);
+};
 const stagnationsDe = (d) => {
   const parExo = {};
   d.seances.forEach((s) =>
@@ -1513,6 +1524,9 @@ function App() {
   // Fin de séance fêtée + onboarding + confettis PR
   const [bilanSeance, setBilanSeance] = useState(null);
   const [recapOuvert, setRecapOuvert] = useState(false);
+  const [douleurZone, setDouleurZone] = useState(null);
+  const [douleurNiveau, setDouleurNiveau] = useState(5);
+  const [douleurOk, setDouleurOk] = useState(false);
   const [photoCorpsBusy, setPhotoCorpsBusy] = useState(false);
   const [comparateurOuvert, setComparateurOuvert] = useState(false);
   const [comparateurSlider, setComparateurSlider] = useState(50);
@@ -1773,11 +1787,16 @@ function App() {
     const q = norm(fNom.trim());
     const cat = CATALOGUE.filter((n) => !allExos.some((m) => m.toLowerCase() === n.toLowerCase()));
     const tout = [...allExos, ...cat];
-    if (!q) return allExos.slice(0, 8);
+    const favoris = data.exosFavoris || [];
+    if (!q) {
+      const fav = allExos.filter((n) => favoris.includes(n));
+      const reste = allExos.filter((n) => !favoris.includes(n));
+      return [...fav, ...reste].slice(0, 8);
+    }
     const debut = tout.filter((n) => norm(n).startsWith(q));
     const dedans = tout.filter((n) => !norm(n).startsWith(q) && norm(n).includes(q));
     return [...debut, ...dedans].slice(0, 8);
-  }, [allExos, fNom]);
+  }, [allExos, fNom, data.exosFavoris]);
 
   const doublonProbable = useMemo(() => {
     const q = fNom.trim();
@@ -2562,6 +2581,41 @@ function App() {
     saveData({ ...data, ciblesMuscles: cibles });
   };
 
+  const definirObjectifExo = (nomExo) => {
+    const key = nomExo.toLowerCase();
+    const cur = (data.objectifsExo || {})[key];
+    const v = window.prompt(`Objectif de charge pour ${nomExo} (kg, vide ou 0 pour retirer)`, cur ? String(cur.cible) : "");
+    if (v === null) return;
+    const n = parseFloat(String(v).replace(",", "."));
+    const objectifsExo = { ...(data.objectifsExo || {}) };
+    if (!n || n <= 0) delete objectifsExo[key];
+    else objectifsExo[key] = { cible: n };
+    saveData({ ...data, objectifsExo });
+  };
+  const enregistrerDouleur = async () => {
+    if (!douleurZone) return;
+    const douleurs = [...(data.douleurs || []), { id: uid(), date: todayISO(), zone: douleurZone, niveau: douleurNiveau }];
+    await saveData({ ...data, douleurs });
+    setDouleurOk(true);
+    setDouleurZone(null);
+    setDouleurNiveau(5);
+    setTimeout(() => setDouleurOk(false), 2500);
+  };
+  const alerteDouleur = useMemo(() => {
+    const list = data.douleurs || [];
+    const isoMin = isoOf(new Date(Date.now() - 14 * 86400000));
+    const recents = list.filter((d) => d.date >= isoMin && d.niveau >= 6);
+    const counts = {};
+    recents.forEach((d) => { counts[d.zone] = (counts[d.zone] || 0) + 1; });
+    const zone = Object.keys(counts).find((z) => counts[z] >= 2);
+    return zone || null;
+  }, [data.douleurs]);
+  const toggleFavori = (nomExo) => {
+    const favs = data.exosFavoris || [];
+    const next = favs.includes(nomExo) ? favs.filter((f) => f !== nomExo) : [...favs, nomExo];
+    saveData({ ...data, exosFavoris: next });
+  };
+
   const genererCarte = async (s) => {
     try { await document.fonts.load('92px Anton'); } catch {}
     const W = 1080, H = 1350;
@@ -2985,6 +3039,17 @@ function App() {
         .pl-flame-pulse { animation: plFlamePulse 1.6s ease-in-out infinite; }
         @keyframes plFlamePulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.18); opacity: .82; } }
 
+        .pl-print-only { display: none; }
+        @media print {
+          body * { visibility: hidden; }
+          .pl-print-only, .pl-print-only * { visibility: visible; }
+          .pl-print-only { display: block; position: absolute; top: 0; left: 0; width: 100%; padding: 24px; color: #111; font-family: system-ui, sans-serif; }
+          .pl-print-only h1 { font-size: 24px; margin: 0 0 8px; }
+          .pl-print-only h2 { font-size: 18px; margin: 20px 0 8px; }
+          .pl-print-only table { width: 100%; border-collapse: collapse; }
+          .pl-print-only td { padding: 4px 8px; border-bottom: 1px solid #ddd; font-size: 13px; }
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .pl-anim > *, .pl-hero-glow, .pl-live, .pl-atoi, .pl-go, .pl-flash { animation: none !important; opacity: 1 !important; transform: none !important; }
           .pl-confetti { display: none; }
@@ -3075,6 +3140,15 @@ function App() {
                 style={{ background: "#fff6e0", border: `1px solid ${C.yellow}`, color: C.yellowDim }}
               >
                 😴 Ça fait {reposDepuis} jours — {data.prochaine ? `${data.prochaine.nom} t'attend` : "prêt à repartir ?"}
+              </div>
+            )}
+
+            {alerteDouleur && (
+              <div
+                className="rounded-xl px-3 py-2 text-xs font-semibold leading-relaxed"
+                style={{ background: "#fbeceb", border: `1px solid ${C.red}`, color: C.red }}
+              >
+                ⚠️ Gêne répétée signalée sur {alerteDouleur} ces 2 dernières semaines — pense à lever le pied ou consulter si ça persiste.
               </div>
             )}
 
@@ -4049,6 +4123,12 @@ function App() {
                       <div className="rounded-xl px-3 py-2 mb-3 text-xs leading-relaxed" style={{ background: "#fbeceb", border: `1px solid ${C.red}` }}>
                         <span style={{ color: C.red }}>Plateau détecté : 3 séances bloquées à {fmtKg(stag.poids)} kg.</span>{" "}
                         <span style={{ color: C.dim }}>Copie ton contexte depuis l'accueil et demande une stratégie à Claude.</span>
+                        {variantesPour(stag.nom).length > 0 && (
+                          <div className="mt-1.5">
+                            <span style={{ color: C.dim }}>Variantes à essayer : </span>
+                            <span style={{ color: C.red, fontWeight: 600 }}>{variantesPour(stag.nom).join(" · ")}</span>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -5600,6 +5680,28 @@ function App() {
                   <button onClick={partager} className="pl-tap w-full rounded-2xl py-4 font-black flex items-center justify-center gap-2" style={{ background: shareId === "retro" ? C.card2 : C.yellow, color: shareId === "retro" ? C.green : "#111", border: shareId === "retro" ? `1px solid ${C.green}` : "none" }}>
                     <Share2 size={16} /> {shareId === "retro" ? "Copié !" : "Partager ma rétro"}
                   </button>
+                  <button onClick={() => window.print()} className="pl-tap w-full rounded-2xl py-3.5 font-bold flex items-center justify-center gap-2" style={{ background: C.card, border: `1px solid ${C.line}`, color: C.yellowDim }}>
+                    🖨️ Exporter en PDF
+                  </button>
+                  <div id="pl-print-retro" className="pl-print-only">
+                    <h1>PLATEAU — Rétro {an}</h1>
+                    <p>{sAn.length} séances · {series} séries · {Math.round(minutes / 60)} h à la salle · {prs} records battus</p>
+                    <p><b>{tonnage.toLocaleString("fr-FR")} kg</b> soulevés au total, soit {equiv}.</p>
+                    <p>Exercice fétiche : <b>{fetiche}</b> ({cnt[fetiche]} fois).</p>
+                    {best && <p>Plus grosse séance : <b>{best.nom}</b> le {fmtDate(best.date)} — {tonnageSeance(best).toLocaleString("fr-FR")} kg.</p>}
+                    <h2>Mur des records</h2>
+                    <table>
+                      <tbody>
+                        {mursRecords.map((r) => (
+                          <tr key={r.nom}>
+                            <td>{r.nom}</td>
+                            <td>{fmtKg(r.poids)} kg{r.parBras ? "/bras" : ""}</td>
+                            <td>{fmtShort(r.date)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </>
               );
             })()}
@@ -5781,15 +5883,24 @@ function App() {
         return (
           <div className="fixed inset-0 z-50 overflow-y-auto" style={{ background: C.bg }}>
             <div className="max-w-md mx-auto px-4" style={{ paddingTop: "calc(1rem + env(safe-area-inset-top))", paddingBottom: "2rem" }}>
-              <div className="flex items-start justify-between mb-3">
-                <div className="text-xl leading-tight font-bold pr-3">{nom}</div>
-                <button
-                  onClick={() => setFicheExo(null)}
-                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ background: C.card2, color: C.text }}
-                >
-                  <X size={18} />
-                </button>
+              <div className="flex items-start justify-between mb-3 gap-2">
+                <div className="text-xl leading-tight font-bold pr-1">{nom}</div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => toggleFavori(nom)}
+                    className="w-9 h-9 rounded-xl flex items-center justify-center"
+                    style={{ background: (data.exosFavoris || []).includes(nom) ? C.yellow : C.card2, color: (data.exosFavoris || []).includes(nom) ? "#111" : C.dim }}
+                  >
+                    ⭐
+                  </button>
+                  <button
+                    onClick={() => setFicheExo(null)}
+                    className="w-9 h-9 rounded-xl flex items-center justify-center"
+                    style={{ background: C.card2, color: C.text }}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-3">
@@ -5814,6 +5925,32 @@ function App() {
                     </div>
                   )}
                 </Card>
+
+                {!cardio && (() => {
+                  const obj = (data.objectifsExo || {})[nom.toLowerCase()];
+                  const actuel = rec ? rec.poids : 0;
+                  const pct = obj ? Math.max(0, Math.min(100, Math.round((actuel / obj.cible) * 100))) : 0;
+                  return (
+                    <Card onClick={() => definirObjectifExo(nom)} className="pl-tap">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="text-xs font-bold" style={{ color: C.dim }}>Objectif de charge</div>
+                        <div className="text-xs" style={{ color: C.yellowDim }}>{obj ? "Modifier" : "Définir"}</div>
+                      </div>
+                      {obj ? (
+                        <>
+                          <div className="text-sm font-semibold mb-1.5" style={NUMS}>
+                            {fmtKg(actuel)} kg <span style={{ color: C.dim }}>/ {fmtKg(obj.cible)} kg</span>
+                          </div>
+                          <div className="rounded-full overflow-hidden" style={{ height: 8, background: C.card2 }}>
+                            <div style={{ width: `${pct}%`, height: "100%", background: pct >= 100 ? C.green : C.yellow, transition: "width .3s ease" }} />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-sm" style={{ color: C.dim }}>Aucun objectif — tape pour en fixer un.</div>
+                      )}
+                    </Card>
+                  );
+                })()}
 
                 {rp && (
                   <Card>
@@ -6327,9 +6464,34 @@ function App() {
                 </div>
               </div>
             )}
+            <div className="mt-5 w-full rounded-2xl p-3" style={{ maxWidth: 340, background: C.card, border: `1px solid ${C.hair}` }}>
+              <div className="text-xs font-bold mb-2" style={{ color: C.dim }}>Une gêne ou douleur ce coup-ci ? (optionnel)</div>
+              <div className="flex flex-wrap gap-1.5 justify-center mb-2">
+                {MUSCLE_ORDRE.filter((m) => m !== "Autre").map((m) => (
+                  <Chip key={m} active={douleurZone === m} onClick={() => setDouleurZone(douleurZone === m ? null : m)}>{m}</Chip>
+                ))}
+              </div>
+              {douleurZone && (
+                <>
+                  <div className="text-xs mb-1.5" style={{ color: C.dim }}>Intensité : {douleurNiveau}/10</div>
+                  <input
+                    type="range" min={1} max={10} value={douleurNiveau}
+                    onChange={(ev) => setDouleurNiveau(Number(ev.target.value))}
+                    className="w-full mb-2"
+                  />
+                  <button
+                    onClick={enregistrerDouleur}
+                    className="pl-tap w-full rounded-xl py-2.5 font-bold text-sm"
+                    style={{ background: douleurOk ? C.green : C.yellow, color: douleurOk ? "#fff" : "#111" }}
+                  >
+                    {douleurOk ? "Noté ✓" : "Enregistrer"}
+                  </button>
+                </>
+              )}
+            </div>
             <button
               onClick={() => genererCarte(s)}
-              className="pl-tap mt-5 w-full rounded-2xl py-3.5 font-bold flex items-center justify-center gap-2"
+              className="pl-tap mt-3 w-full rounded-2xl py-3.5 font-bold flex items-center justify-center gap-2"
               style={{ maxWidth: 340, background: C.card, border: `1px solid ${C.line}`, color: C.yellowDim }}
             >
               <Camera size={15} /> Partager cette séance

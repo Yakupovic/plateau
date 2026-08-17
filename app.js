@@ -432,6 +432,19 @@ const objectifsText = d => {
 };
 
 // ————— Stagnation, cibles, échauffement de séance —————
+const EQUIPEMENTS_EXO = ["barre", "haltères", "haltere", "machine guidée", "machine", "poulie", "élastique", "smith", "guidé", "guidée"];
+const variantesPour = nom => {
+  const low = nom.toLowerCase();
+  let base = nom;
+  EQUIPEMENTS_EXO.forEach(eq => {
+    base = base.replace(new RegExp(eq, "gi"), "");
+  });
+  base = base.replace(/\s+/g, " ").trim();
+  if (!base) return [];
+  const present = EQUIPEMENTS_EXO.find(eq => low.includes(eq)) || null;
+  const alternatives = ["haltères", "poulie", "machine guidée"].filter(eq => eq !== present);
+  return alternatives.slice(0, 3).map(eq => `${base} ${eq}`);
+};
 const stagnationsDe = d => {
   const parExo = {};
   d.seances.forEach(s => s.exos.forEach(e => {
@@ -2697,6 +2710,9 @@ function App() {
   // Fin de séance fêtée + onboarding + confettis PR
   const [bilanSeance, setBilanSeance] = useState(null);
   const [recapOuvert, setRecapOuvert] = useState(false);
+  const [douleurZone, setDouleurZone] = useState(null);
+  const [douleurNiveau, setDouleurNiveau] = useState(5);
+  const [douleurOk, setDouleurOk] = useState(false);
   const [photoCorpsBusy, setPhotoCorpsBusy] = useState(false);
   const [comparateurOuvert, setComparateurOuvert] = useState(false);
   const [comparateurSlider, setComparateurSlider] = useState(50);
@@ -2982,11 +2998,16 @@ function App() {
     const q = norm(fNom.trim());
     const cat = CATALOGUE.filter(n => !allExos.some(m => m.toLowerCase() === n.toLowerCase()));
     const tout = [...allExos, ...cat];
-    if (!q) return allExos.slice(0, 8);
+    const favoris = data.exosFavoris || [];
+    if (!q) {
+      const fav = allExos.filter(n => favoris.includes(n));
+      const reste = allExos.filter(n => !favoris.includes(n));
+      return [...fav, ...reste].slice(0, 8);
+    }
     const debut = tout.filter(n => norm(n).startsWith(q));
     const dedans = tout.filter(n => !norm(n).startsWith(q) && norm(n).includes(q));
     return [...debut, ...dedans].slice(0, 8);
-  }, [allExos, fNom]);
+  }, [allExos, fNom, data.exosFavoris]);
   const doublonProbable = useMemo(() => {
     const q = fNom.trim();
     if (!q || q.length < 4 || editExoId) return null;
@@ -4058,6 +4079,59 @@ function App() {
       ciblesMuscles: cibles
     });
   };
+  const definirObjectifExo = nomExo => {
+    const key = nomExo.toLowerCase();
+    const cur = (data.objectifsExo || {})[key];
+    const v = window.prompt(`Objectif de charge pour ${nomExo} (kg, vide ou 0 pour retirer)`, cur ? String(cur.cible) : "");
+    if (v === null) return;
+    const n = parseFloat(String(v).replace(",", "."));
+    const objectifsExo = {
+      ...(data.objectifsExo || {})
+    };
+    if (!n || n <= 0) delete objectifsExo[key];else objectifsExo[key] = {
+      cible: n
+    };
+    saveData({
+      ...data,
+      objectifsExo
+    });
+  };
+  const enregistrerDouleur = async () => {
+    if (!douleurZone) return;
+    const douleurs = [...(data.douleurs || []), {
+      id: uid(),
+      date: todayISO(),
+      zone: douleurZone,
+      niveau: douleurNiveau
+    }];
+    await saveData({
+      ...data,
+      douleurs
+    });
+    setDouleurOk(true);
+    setDouleurZone(null);
+    setDouleurNiveau(5);
+    setTimeout(() => setDouleurOk(false), 2500);
+  };
+  const alerteDouleur = useMemo(() => {
+    const list = data.douleurs || [];
+    const isoMin = isoOf(new Date(Date.now() - 14 * 86400000));
+    const recents = list.filter(d => d.date >= isoMin && d.niveau >= 6);
+    const counts = {};
+    recents.forEach(d => {
+      counts[d.zone] = (counts[d.zone] || 0) + 1;
+    });
+    const zone = Object.keys(counts).find(z => counts[z] >= 2);
+    return zone || null;
+  }, [data.douleurs]);
+  const toggleFavori = nomExo => {
+    const favs = data.exosFavoris || [];
+    const next = favs.includes(nomExo) ? favs.filter(f => f !== nomExo) : [...favs, nomExo];
+    saveData({
+      ...data,
+      exosFavoris: next
+    });
+  };
   const genererCarte = async s => {
     try {
       await document.fonts.load('92px Anton');
@@ -4605,6 +4679,17 @@ function App() {
         .pl-flame-pulse { animation: plFlamePulse 1.6s ease-in-out infinite; }
         @keyframes plFlamePulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.18); opacity: .82; } }
 
+        .pl-print-only { display: none; }
+        @media print {
+          body * { visibility: hidden; }
+          .pl-print-only, .pl-print-only * { visibility: visible; }
+          .pl-print-only { display: block; position: absolute; top: 0; left: 0; width: 100%; padding: 24px; color: #111; font-family: system-ui, sans-serif; }
+          .pl-print-only h1 { font-size: 24px; margin: 0 0 8px; }
+          .pl-print-only h2 { font-size: 18px; margin: 20px 0 8px; }
+          .pl-print-only table { width: 100%; border-collapse: collapse; }
+          .pl-print-only td { padding: 4px 8px; border-bottom: 1px solid #ddd; font-size: 13px; }
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .pl-anim > *, .pl-hero-glow, .pl-live, .pl-atoi, .pl-go, .pl-flash { animation: none !important; opacity: 1 !important; transform: none !important; }
           .pl-confetti { display: none; }
@@ -4734,7 +4819,14 @@ function App() {
       border: `1px solid ${C.yellow}`,
       color: C.yellowDim
     }
-  }, "\uD83D\uDE34 \xC7a fait ", reposDepuis, " jours \u2014 ", data.prochaine ? `${data.prochaine.nom} t'attend` : "prêt à repartir ?"), /*#__PURE__*/React.createElement(Card, {
+  }, "\uD83D\uDE34 \xC7a fait ", reposDepuis, " jours \u2014 ", data.prochaine ? `${data.prochaine.nom} t'attend` : "prêt à repartir ?"), alerteDouleur && /*#__PURE__*/React.createElement("div", {
+    className: "rounded-xl px-3 py-2 text-xs font-semibold leading-relaxed",
+    style: {
+      background: "#fbeceb",
+      border: `1px solid ${C.red}`,
+      color: C.red
+    }
+  }, "\u26A0\uFE0F G\xEAne r\xE9p\xE9t\xE9e signal\xE9e sur ", alerteDouleur, " ces 2 derni\xE8res semaines \u2014 pense \xE0 lever le pied ou consulter si \xE7a persiste."), /*#__PURE__*/React.createElement(Card, {
     onClick: definirObjSeances,
     className: "pl-tap flex items-center gap-4"
   }, /*#__PURE__*/React.createElement(Ring, {
@@ -6013,7 +6105,18 @@ function App() {
     style: {
       color: C.dim
     }
-  }, "Copie ton contexte depuis l'accueil et demande une strat\xE9gie \xE0 Claude.")), fNom.trim() && !isCardio && repereFor(fNom, poidsCorps) && (() => {
+  }, "Copie ton contexte depuis l'accueil et demande une strat\xE9gie \xE0 Claude."), variantesPour(stag.nom).length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "mt-1.5"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.dim
+    }
+  }, "Variantes \xE0 essayer : "), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.red,
+      fontWeight: 600
+    }
+  }, variantesPour(stag.nom).join(" · ")))), fNom.trim() && !isCardio && repereFor(fNom, poidsCorps) && (() => {
     const rp = repereFor(fNom, poidsCorps);
     const brut = parseFloat(String(fPoids).replace(",", "."));
     const charge = isNaN(brut) ? 0 : fParBras ? brut * 2 : brut;
@@ -8117,7 +8220,20 @@ function App() {
       }
     }, /*#__PURE__*/React.createElement(Share2, {
       size: 16
-    }), " ", shareId === "retro" ? "Copié !" : "Partager ma rétro"));
+    }), " ", shareId === "retro" ? "Copié !" : "Partager ma rétro"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => window.print(),
+      className: "pl-tap w-full rounded-2xl py-3.5 font-bold flex items-center justify-center gap-2",
+      style: {
+        background: C.card,
+        border: `1px solid ${C.line}`,
+        color: C.yellowDim
+      }
+    }, "\uD83D\uDDA8\uFE0F Exporter en PDF"), /*#__PURE__*/React.createElement("div", {
+      id: "pl-print-retro",
+      className: "pl-print-only"
+    }, /*#__PURE__*/React.createElement("h1", null, "PLATEAU \u2014 R\xE9tro ", an), /*#__PURE__*/React.createElement("p", null, sAn.length, " s\xE9ances \xB7 ", series, " s\xE9ries \xB7 ", Math.round(minutes / 60), " h \xE0 la salle \xB7 ", prs, " records battus"), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("b", null, tonnage.toLocaleString("fr-FR"), " kg"), " soulev\xE9s au total, soit ", equiv, "."), /*#__PURE__*/React.createElement("p", null, "Exercice f\xE9tiche : ", /*#__PURE__*/React.createElement("b", null, fetiche), " (", cnt[fetiche], " fois)."), best && /*#__PURE__*/React.createElement("p", null, "Plus grosse s\xE9ance : ", /*#__PURE__*/React.createElement("b", null, best.nom), " le ", fmtDate(best.date), " \u2014 ", tonnageSeance(best).toLocaleString("fr-FR"), " kg."), /*#__PURE__*/React.createElement("h2", null, "Mur des records"), /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("tbody", null, mursRecords.map(r => /*#__PURE__*/React.createElement("tr", {
+      key: r.nom
+    }, /*#__PURE__*/React.createElement("td", null, r.nom), /*#__PURE__*/React.createElement("td", null, fmtKg(r.poids), " kg", r.parBras ? "/bras" : ""), /*#__PURE__*/React.createElement("td", null, fmtShort(r.date))))))));
   })(), progMode === "equilibre" && (() => {
     const groupes = ["Pecs", "Dos", "Épaules", "Biceps", "Triceps", "Jambes"];
     const v30 = volumeGros(data, 30);
@@ -8379,19 +8495,28 @@ function App() {
         paddingBottom: "2rem"
       }
     }, /*#__PURE__*/React.createElement("div", {
-      className: "flex items-start justify-between mb-3"
+      className: "flex items-start justify-between mb-3 gap-2"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "text-xl leading-tight font-bold pr-3"
-    }, nom), /*#__PURE__*/React.createElement("button", {
+      className: "text-xl leading-tight font-bold pr-1"
+    }, nom), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2 shrink-0"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => toggleFavori(nom),
+      className: "w-9 h-9 rounded-xl flex items-center justify-center",
+      style: {
+        background: (data.exosFavoris || []).includes(nom) ? C.yellow : C.card2,
+        color: (data.exosFavoris || []).includes(nom) ? "#111" : C.dim
+      }
+    }, "\u2B50"), /*#__PURE__*/React.createElement("button", {
       onClick: () => setFicheExo(null),
-      className: "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
+      className: "w-9 h-9 rounded-xl flex items-center justify-center",
       style: {
         background: C.card2,
         color: C.text
       }
     }, /*#__PURE__*/React.createElement(X, {
       size: 18
-    }))), /*#__PURE__*/React.createElement("div", {
+    })))), /*#__PURE__*/React.createElement("div", {
       className: "space-y-3"
     }, /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
       className: "flex items-center justify-between"
@@ -8425,7 +8550,52 @@ function App() {
         ...NUMS,
         color: sg.monte ? C.yellowDim : C.dim
       }
-    }, sg.monte ? `Prochaine fois : vise ${fmtKg(sg.cible)} kg` : `Prochaine fois : reste à ${fmtKg(sg.cible)} kg`)), rp && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+    }, sg.monte ? `Prochaine fois : vise ${fmtKg(sg.cible)} kg` : `Prochaine fois : reste à ${fmtKg(sg.cible)} kg`)), !cardio && (() => {
+      const obj = (data.objectifsExo || {})[nom.toLowerCase()];
+      const actuel = rec ? rec.poids : 0;
+      const pct = obj ? Math.max(0, Math.min(100, Math.round(actuel / obj.cible * 100))) : 0;
+      return /*#__PURE__*/React.createElement(Card, {
+        onClick: () => definirObjectifExo(nom),
+        className: "pl-tap"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "flex items-center justify-between mb-1"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "text-xs font-bold",
+        style: {
+          color: C.dim
+        }
+      }, "Objectif de charge"), /*#__PURE__*/React.createElement("div", {
+        className: "text-xs",
+        style: {
+          color: C.yellowDim
+        }
+      }, obj ? "Modifier" : "Définir")), obj ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+        className: "text-sm font-semibold mb-1.5",
+        style: NUMS
+      }, fmtKg(actuel), " kg ", /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.dim
+        }
+      }, "/ ", fmtKg(obj.cible), " kg")), /*#__PURE__*/React.createElement("div", {
+        className: "rounded-full overflow-hidden",
+        style: {
+          height: 8,
+          background: C.card2
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          width: `${pct}%`,
+          height: "100%",
+          background: pct >= 100 ? C.green : C.yellow,
+          transition: "width .3s ease"
+        }
+      }))) : /*#__PURE__*/React.createElement("div", {
+        className: "text-sm",
+        style: {
+          color: C.dim
+        }
+      }, "Aucun objectif \u2014 tape pour en fixer un."));
+    })(), rp && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
       className: "text-xs font-bold mb-2"
     }, "Rep\xE8res \xB7 ", fmtKg(poidsCorps), " kg de corps"), /*#__PURE__*/React.createElement("div", {
       className: "flex justify-between text-xs",
@@ -9175,9 +9345,46 @@ function App() {
         ...NUMS,
         color: C.text
       }
-    }, prs.map(e => `${e.nom} ${fmtKg(e.poids)} kg`).join(" · "))), /*#__PURE__*/React.createElement("button", {
+    }, prs.map(e => `${e.nom} ${fmtKg(e.poids)} kg`).join(" · "))), /*#__PURE__*/React.createElement("div", {
+      className: "mt-5 w-full rounded-2xl p-3",
+      style: {
+        maxWidth: 340,
+        background: C.card,
+        border: `1px solid ${C.hair}`
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-xs font-bold mb-2",
+      style: {
+        color: C.dim
+      }
+    }, "Une g\xEAne ou douleur ce coup-ci ? (optionnel)"), /*#__PURE__*/React.createElement("div", {
+      className: "flex flex-wrap gap-1.5 justify-center mb-2"
+    }, MUSCLE_ORDRE.filter(m => m !== "Autre").map(m => /*#__PURE__*/React.createElement(Chip, {
+      key: m,
+      active: douleurZone === m,
+      onClick: () => setDouleurZone(douleurZone === m ? null : m)
+    }, m))), douleurZone && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      className: "text-xs mb-1.5",
+      style: {
+        color: C.dim
+      }
+    }, "Intensit\xE9 : ", douleurNiveau, "/10"), /*#__PURE__*/React.createElement("input", {
+      type: "range",
+      min: 1,
+      max: 10,
+      value: douleurNiveau,
+      onChange: ev => setDouleurNiveau(Number(ev.target.value)),
+      className: "w-full mb-2"
+    }), /*#__PURE__*/React.createElement("button", {
+      onClick: enregistrerDouleur,
+      className: "pl-tap w-full rounded-xl py-2.5 font-bold text-sm",
+      style: {
+        background: douleurOk ? C.green : C.yellow,
+        color: douleurOk ? "#fff" : "#111"
+      }
+    }, douleurOk ? "Noté ✓" : "Enregistrer"))), /*#__PURE__*/React.createElement("button", {
       onClick: () => genererCarte(s),
-      className: "pl-tap mt-5 w-full rounded-2xl py-3.5 font-bold flex items-center justify-center gap-2",
+      className: "pl-tap mt-3 w-full rounded-2xl py-3.5 font-bold flex items-center justify-center gap-2",
       style: {
         maxWidth: 340,
         background: C.card,
