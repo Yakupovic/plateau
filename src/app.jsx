@@ -315,6 +315,21 @@ const echauffementPour = (cible) => {
   return p ? p.map((s) => `${fmtKg(s.poids)}×${s.reps}`).join(" → ") : "1 série légère × 15";
 };
 const epley = (p, r) => p * (1 + r / 30);
+const brzycki = (p, r) => (r >= 37 ? p : p * (36 / (37 - r)));
+const titreFun = (s) => {
+  const nbPr = s.exos.filter((e) => e.pr).length;
+  if (nbPr >= 2) return "Séance de feu 🔥";
+  if (nbPr === 1) return "Un record de plus ⭐";
+  const n = (s.exos || []).length;
+  if (n >= 6) return "Grosse session, bien chargée";
+  if (n <= 1) return "Petite séance, ça compte quand même";
+  const low = s.nom.toLowerCase();
+  if (low.includes("jambe")) return "Mise en jambes costaude";
+  if (low.includes("dos") || low.includes("pull")) return "Bon dos, bonne posture";
+  if (low.includes("push") || low.includes("pec")) return "Poussée du jour";
+  return "Séance dans la boîte";
+};
+const lombardi = (p, r) => p * Math.pow(r, 0.10);
 const best1RM = (d, nom) => {
   const list = d.seances.flatMap((s) => s.exos).filter((e) => e.nom.toLowerCase() === nom.toLowerCase());
   let m = null;
@@ -323,6 +338,15 @@ const best1RM = (d, nom) => {
     sets.forEach((s) => { const v = epley(s.poids, s.reps || 1); if (m == null || v > m) m = v; });
   });
   return m;
+};
+const best1RMSet = (d, nom) => {
+  const list = d.seances.flatMap((s) => s.exos).filter((e) => e.nom.toLowerCase() === nom.toLowerCase());
+  let best = null, bestVal = null;
+  list.forEach((e) => {
+    const sets = e.sets && e.sets.length ? e.sets : [{ poids: e.poids, reps: e.reps }];
+    sets.forEach((s) => { const v = epley(s.poids, s.reps || 1); if (bestVal == null || v > bestVal) { bestVal = v; best = { poids: s.poids, reps: s.reps || 1 }; } });
+  });
+  return best;
 };
 const recordOf = (d, nom) => {
   const list = d.seances.flatMap((s) => s.exos).filter((e) => e.nom.toLowerCase() === nom.toLowerCase()).map((e) => e.poids);
@@ -606,6 +630,31 @@ async function askCoach(prompt) {
 }
 const COACH_DISPO = false;
 const MSG_NOAPI = "Coach integre non connecte : ajoute ta cle API dans la carte Coach integre sur l'accueil, ou pose ta question a Claude directement.";
+
+// ————— Sauvegarde chiffrée (AES-GCM natif, sans dépendance) —————
+const bufToB64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const b64ToBuf = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+async function chiffrerTexte(texte, motDePasse) {
+  const enc = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const keyMat = await crypto.subtle.importKey("raw", enc.encode(motDePasse), "PBKDF2", false, ["deriveKey"]);
+  const key = await crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: 150000, hash: "SHA-256" }, keyMat, { name: "AES-GCM", length: 256 }, false, ["encrypt"]);
+  const cipher = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(texte));
+  return JSON.stringify({ plateauChiffre: true, salt: bufToB64(salt), iv: bufToB64(iv), data: bufToB64(cipher) });
+}
+async function dechiffrerTexte(payloadTxt, motDePasse) {
+  const payload = JSON.parse(payloadTxt);
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
+  const salt = b64ToBuf(payload.salt);
+  const iv = b64ToBuf(payload.iv);
+  const data = b64ToBuf(payload.data);
+  const keyMat = await crypto.subtle.importKey("raw", enc.encode(motDePasse), "PBKDF2", false, ["deriveKey"]);
+  const key = await crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: 150000, hash: "SHA-256" }, keyMat, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+  const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
+  return dec.decode(plain);
+}
 
 // ————— Photos des machines (compressées pour le stockage) —————
 const photoCache = {};
@@ -1630,6 +1679,7 @@ function App() {
       if (rest && !beepedRef.current && Date.now() >= rest.endsAt) {
         beepedRef.current = true;
         beep();
+        coachDit("Repos terminé, série suivante.");
       }
     }, 300);
     return () => clearInterval(iv);
@@ -1682,6 +1732,28 @@ function App() {
         g.gain.exponentialRampToValueAtTime(0.0001, at + 0.35);
         o.start(at); o.stop(at + 0.4);
       });
+    } catch {}
+  };
+  const partagerImage = async (dataUrl, titre) => {
+    try {
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const file = new File([blob], "plateau.png", { type: "image/png" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: titre || "PLATEAU" });
+        return;
+      }
+    } catch {}
+    setPhotoView(dataUrl);
+  };
+  const coachDit = (texte) => {
+    try {
+      if (!data.coachVocal || !("speechSynthesis" in window)) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(texte);
+      u.lang = "fr-FR";
+      u.rate = 1.05;
+      window.speechSynthesis.speak(u);
     } catch {}
   };
 
@@ -2581,6 +2653,16 @@ function App() {
     saveData({ ...data, ciblesMuscles: cibles });
   };
 
+  const definirNoteExo = (nomExo) => {
+    const key = nomExo.toLowerCase();
+    const cur = (data.notesExo || {})[key] || "";
+    const v = window.prompt(`Note perso pour ${nomExo} (ex: réglage du siège, technique...)`, cur);
+    if (v === null) return;
+    const notesExo = { ...(data.notesExo || {}) };
+    if (!v.trim()) delete notesExo[key];
+    else notesExo[key] = v.trim();
+    saveData({ ...data, notesExo });
+  };
   const definirObjectifExo = (nomExo) => {
     const key = nomExo.toLowerCase();
     const cur = (data.objectifsExo || {})[key];
@@ -2591,6 +2673,12 @@ function App() {
     if (!n || n <= 0) delete objectifsExo[key];
     else objectifsExo[key] = { cible: n };
     saveData({ ...data, objectifsExo });
+  };
+  const enregistrerRessenti = async (champ, valeur) => {
+    const jour = todayISO();
+    const ressentis = { ...(data.ressentis || {}) };
+    ressentis[jour] = { ...(ressentis[jour] || {}), [champ]: valeur };
+    await saveData({ ...data, ressentis });
   };
   const enregistrerDouleur = async () => {
     if (!douleurZone) return;
@@ -2610,6 +2698,15 @@ function App() {
     const zone = Object.keys(counts).find((z) => counts[z] >= 2);
     return zone || null;
   }, [data.douleurs]);
+  const souvenirRecord = useMemo(() => {
+    let best = null;
+    data.seances.forEach((s) => s.exos.forEach((e) => {
+      if (!e.pr || e.type === "cardio") return;
+      const j = joursDepuis(s.date);
+      if (j >= 363 && j <= 367) best = { nom: e.nom, poids: e.poids, jours: j };
+    }));
+    return best;
+  }, [data.seances]);
   const toggleFavori = (nomExo) => {
     const favs = data.exosFavoris || [];
     const next = favs.includes(nomExo) ? favs.filter((f) => f !== nomExo) : [...favs, nomExo];
@@ -2653,7 +2750,7 @@ function App() {
     }
     ctx.fillStyle = "#8a5b00"; ctx.font = "700 36px -apple-system, sans-serif";
     ctx.fillText(`🔥 ${streak} sem. streak · la salle ${passages}/${palier.cible}`, 70, H - 90);
-    setPhotoView(cv.toDataURL("image/png"));
+    await partagerImage(cv.toDataURL("image/png"), `PLATEAU · ${s.nom}`);
   };
 
   const genererCarteSemaine = async () => {
@@ -2694,7 +2791,7 @@ function App() {
     }
     ctx.fillStyle = "#8a5b00"; ctx.font = "700 36px -apple-system, sans-serif";
     ctx.fillText(`🔥 ${streak} sem. streak · la salle ${passages}/${palier.cible}`, 70, H - 90);
-    setPhotoView(cv.toDataURL("image/png"));
+    await partagerImage(cv.toDataURL("image/png"), "PLATEAU · Ma semaine");
   };
 
   // ————— Poids de corps + mensurations —————
@@ -2850,6 +2947,19 @@ function App() {
       setExportText(txt);
     }
   };
+  const exporterChiffre = async () => {
+    const mdp = window.prompt("Mot de passe pour chiffrer ta sauvegarde (à retenir, pas de récupération possible si tu l'oublies) :");
+    if (!mdp || !mdp.trim()) return;
+    try {
+      const payload = await chiffrerTexte(JSON.stringify(exportPayload()), mdp.trim());
+      const blob = new Blob([payload], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `plateau-chiffre-${todayISO()}.json`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch { window.alert("Chiffrement impossible sur ce navigateur."); }
+  };
   const exporterCSV = () => {
     const rows = [["date", "seance", "exercice", "serie", "poids_kg", "reps", "ressenti"]];
     data.seances.forEach((s) => {
@@ -2872,7 +2982,15 @@ function App() {
   };
   const importer = async () => {
     try {
-      const obj = JSON.parse(importText);
+      let texte = importText;
+      const essai = JSON.parse(texte);
+      if (essai && essai.plateauChiffre) {
+        const mdp = window.prompt("Cette sauvegarde est chiffrée. Mot de passe :");
+        if (!mdp) return;
+        try { texte = await dechiffrerTexte(texte, mdp); }
+        catch { window.alert("Mot de passe incorrect ou fichier corrompu."); return; }
+      }
+      const obj = JSON.parse(texte);
       if (!obj || !Array.isArray(obj.seances)) throw new Error("format");
       // robustesse : une séance sans exos (JSON bricolé) ferait planter les calculs
       obj.seances = obj.seances.map((s) => ({ ...s, exos: Array.isArray(s.exos) ? s.exos : [] }));
@@ -2953,7 +3071,7 @@ function App() {
 
   // ————— Rendu —————
   return (
-    <div className="pl-root min-h-screen w-full" style={{ color: C.text }}>
+    <div className={"pl-root min-h-screen w-full" + (data.modeSoleil ? " pl-soleil" : "")} style={{ color: C.text }}>
       <style>{`
         @keyframes plGo { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(1.06); } }
         @keyframes plFlash { 0%,100% { background: #eafbf1; } 50% { background: #c9f0d8; } }
@@ -3036,6 +3154,7 @@ function App() {
         .pl-confetti i { position: absolute; top: -12px; width: 8px; height: 14px; border-radius: 2px; animation: plFall linear forwards; }
         @keyframes plFall { to { transform: translateY(105vh) rotate(720deg); opacity: .1 } }
 
+        .pl-soleil { filter: contrast(1.22) saturate(1.15); }
         .pl-flame-pulse { animation: plFlamePulse 1.6s ease-in-out infinite; }
         @keyframes plFlamePulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.18); opacity: .82; } }
 
@@ -3140,6 +3259,15 @@ function App() {
                 style={{ background: "#fff6e0", border: `1px solid ${C.yellow}`, color: C.yellowDim }}
               >
                 😴 Ça fait {reposDepuis} jours — {data.prochaine ? `${data.prochaine.nom} t'attend` : "prêt à repartir ?"}
+              </div>
+            )}
+
+            {souvenirRecord && (
+              <div
+                className="rounded-xl px-3 py-2 text-xs font-semibold"
+                style={{ background: "#fff6e0", border: `1px solid ${C.yellow}`, color: C.yellowDim }}
+              >
+                🎉 Il y a 1 an jour pour jour, tu battais ton record de {souvenirRecord.nom} à {fmtKg(souvenirRecord.poids)} kg.
               </div>
             )}
 
@@ -3522,6 +3650,28 @@ function App() {
               >
                 🔘 Gros boutons {data.grosBoutons === true ? "ON" : "OFF"} — plus faciles à viser quand t'es cramé
               </button>
+              <button
+                onClick={() => saveData({ ...data, modeSoleil: data.modeSoleil === true ? false : true })}
+                className="w-full rounded-xl py-3 mb-3 font-semibold text-sm flex items-center justify-center gap-2"
+                style={{
+                  background: data.modeSoleil === true ? C.yellow : C.card2,
+                  color: data.modeSoleil === true ? "#111" : C.text,
+                  border: `1px solid ${data.modeSoleil === true ? C.yellow : C.line}`,
+                }}
+              >
+                ☀️ Mode plein soleil {data.modeSoleil === true ? "ON" : "OFF"} — contraste boosté pour lire dehors
+              </button>
+              <button
+                onClick={() => saveData({ ...data, coachVocal: data.coachVocal === true ? false : true })}
+                className="w-full rounded-xl py-3 mb-3 font-semibold text-sm flex items-center justify-center gap-2"
+                style={{
+                  background: data.coachVocal === true ? C.yellow : C.card2,
+                  color: data.coachVocal === true ? "#111" : C.text,
+                  border: `1px solid ${data.coachVocal === true ? C.yellow : C.line}`,
+                }}
+              >
+                🔊 Coach vocal {data.coachVocal === true ? "ON" : "OFF"} — annonce la fin du repos à voix haute
+              </button>
 
               {doublonsExistants.length > 0 && (
                 <div className="rounded-xl p-3 mb-3" style={{ background: C.card, border: `1px solid ${C.yellowDim}` }}>
@@ -3581,6 +3731,13 @@ function App() {
                 style={{ background: C.card2, border: `1px solid ${C.line}`, color: C.text }}
               >
                 <Copy size={14} /> Exporter en CSV (Excel/Sheets)
+              </button>
+              <button
+                onClick={exporterChiffre}
+                className="w-full rounded-xl py-3 mt-2 font-semibold text-sm flex items-center justify-center gap-2"
+                style={{ background: C.card2, border: `1px solid ${C.line}`, color: C.text }}
+              >
+                🔒 Sauvegarde chiffrée par mot de passe
               </button>
               {exportText && (
                 <textarea
@@ -3679,6 +3836,16 @@ function App() {
                     </button>
                   </div>
                 </Card>
+
+                <a
+                  href={`https://open.spotify.com/search/${encodeURIComponent(current.nom + " workout musculation playlist")}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full text-left text-xs px-1 flex items-center gap-1"
+                  style={{ color: C.yellowDim }}
+                >
+                  🎵 Playlist d'entraînement →
+                </a>
 
                 {cycleDe(data).deload && (
                   <div className="rounded-xl px-3 py-2 text-sm leading-relaxed" style={{ background: "#eaf5ee", border: `1px solid ${C.green}`, color: C.green }}>
@@ -4085,6 +4252,12 @@ function App() {
                         >
                           🎥 Vidéo
                         </a>
+                      </div>
+                    )}
+
+                    {fNom.trim() && !isCardio && !editExoId && (data.notesExo || {})[fNom.trim().toLowerCase()] && (
+                      <div className="rounded-xl px-3 py-2 mb-3 text-xs leading-relaxed" style={{ background: C.card2, border: `1px solid ${C.yellowDim}` }}>
+                        📝 <b>Ta note :</b> {(data.notesExo || {})[fNom.trim().toLowerCase()]}
                       </div>
                     )}
 
@@ -5340,12 +5513,28 @@ function App() {
                       </div>
                     )}
 
-                    {rm1Sel != null && (
-                      <div className="text-xs mt-3 pt-3 leading-relaxed" style={{ borderTop: `1px solid ${C.line}`, color: C.dim }}>
-                        <span style={{ color: C.text, fontWeight: 700, ...NUMS }}>1RM estimé : {fmtKg(Math.round(rm1Sel * 2) / 2)} kg</span>
-                        {" "}— la charge que tu sortirais sur une seule répétition, calculée depuis tes séries. Estimation, ne la teste pas en vrai sans partenaire.
-                      </div>
-                    )}
+                    {rm1Sel != null && (() => {
+                      const bs = best1RMSet(data, selExo);
+                      const rmB = bs ? brzycki(bs.poids, bs.reps) : null;
+                      const rmL = bs ? lombardi(bs.poids, bs.reps) : null;
+                      const ratio = poidsCorps ? rm1Sel / poidsCorps : null;
+                      return (
+                        <div className="text-xs mt-3 pt-3 leading-relaxed" style={{ borderTop: `1px solid ${C.line}`, color: C.dim }}>
+                          <span style={{ color: C.text, fontWeight: 700, ...NUMS }}>1RM estimé : {fmtKg(Math.round(rm1Sel * 2) / 2)} kg</span>
+                          {" "}— la charge que tu sortirais sur une seule répétition, calculée depuis tes séries. Estimation, ne la teste pas en vrai sans partenaire.
+                          {rmB != null && rmL != null && (
+                            <div className="mt-1" style={{ ...NUMS }}>
+                              Epley {fmtKg(rm1Sel)} kg · Brzycki {fmtKg(rmB)} kg · Lombardi {fmtKg(rmL)} kg
+                            </div>
+                          )}
+                          {ratio != null && (
+                            <div className="mt-1" style={{ ...NUMS }}>
+                              Soit {ratio.toFixed(2)}× ton poids de corps
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </Card>
                 )}
                 <Card>
@@ -5919,6 +6108,11 @@ function App() {
                       {niv && <div className="text-sm font-black" style={{ color: niv.color }}>{niv.label}</div>}
                     </div>
                   </div>
+                  {hist.length > 0 && joursDepuis(hist[hist.length - 1].date) > 60 && (
+                    <div className="text-xs mt-2" style={{ color: C.yellowDim }}>
+                      ⏳ Pas refait depuis {joursDepuis(hist[hist.length - 1].date)} jours — ça se perd vite, pense à le remettre au programme.
+                    </div>
+                  )}
                   {sg && !cardio && (
                     <div className="text-xs mt-2" style={{ ...NUMS, color: sg.monte ? C.yellowDim : C.dim }}>
                       {sg.monte ? `Prochaine fois : vise ${fmtKg(sg.cible)} kg` : `Prochaine fois : reste à ${fmtKg(sg.cible)} kg`}
@@ -5951,6 +6145,16 @@ function App() {
                     </Card>
                   );
                 })()}
+
+                <Card onClick={() => definirNoteExo(nom)} className="pl-tap">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-xs font-bold" style={{ color: C.dim }}>Note perso</div>
+                    <div className="text-xs" style={{ color: C.yellowDim }}>{(data.notesExo || {})[nom.toLowerCase()] ? "Modifier" : "Ajouter"}</div>
+                  </div>
+                  <div className="text-sm" style={{ color: (data.notesExo || {})[nom.toLowerCase()] ? C.text : C.dim }}>
+                    {(data.notesExo || {})[nom.toLowerCase()] || "Ex: réglage du siège, technique à retenir…"}
+                  </div>
+                </Card>
 
                 {rp && (
                   <Card>
@@ -6445,7 +6649,8 @@ function App() {
             {prs.length > 0 && <Confetti />}
             <div className="pl-atoi" style={{ fontSize: 52, lineHeight: 1 }}>💪</div>
             <div className="text-xs font-extrabold tracking-widest uppercase mt-3" style={{ color: C.yellowDim }}>Séance terminée</div>
-            <div className="leading-none mt-1 mb-6" style={{ ...DISPLAY, color: C.text, fontSize: 40 }}>{s.nom.toUpperCase()}</div>
+            <div className="leading-none mt-1" style={{ ...DISPLAY, color: C.text, fontSize: 40 }}>{s.nom.toUpperCase()}</div>
+            <div className="text-sm mb-6 mt-1" style={{ color: C.dim }}>{titreFun(s)}</div>
             <div className="grid grid-cols-3 gap-3 w-full" style={{ maxWidth: 340 }}>
               {tuiles.map(([v, k], i) => (
                 <div key={i} className="rounded-2xl py-3 px-1" style={{ background: C.card, border: `1px solid ${C.hair}` }}>
@@ -6465,6 +6670,38 @@ function App() {
               </div>
             )}
             <div className="mt-5 w-full rounded-2xl p-3" style={{ maxWidth: 340, background: C.card, border: `1px solid ${C.hair}` }}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-xs font-bold" style={{ color: C.dim }}>Fatigue</div>
+                <div className="flex gap-1.5">
+                  {["😴", "😐", "💪"].map((e, i) => (
+                    <button
+                      key={i}
+                      onClick={() => enregistrerRessenti("fatigue", i + 1)}
+                      className="w-9 h-9 rounded-lg flex items-center justify-center text-lg"
+                      style={{ background: (data.ressentis || {})[todayISO()]?.fatigue === i + 1 ? C.yellow : C.card2 }}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-xs font-bold" style={{ color: C.dim }}>Motivation</div>
+                <div className="flex gap-1.5">
+                  {["👎", "😐", "🔥"].map((e, i) => (
+                    <button
+                      key={i}
+                      onClick={() => enregistrerRessenti("motivation", i + 1)}
+                      className="w-9 h-9 rounded-lg flex items-center justify-center text-lg"
+                      style={{ background: (data.ressentis || {})[todayISO()]?.motivation === i + 1 ? C.yellow : C.card2 }}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 w-full rounded-2xl p-3" style={{ maxWidth: 340, background: C.card, border: `1px solid ${C.hair}` }}>
               <div className="text-xs font-bold mb-2" style={{ color: C.dim }}>Une gêne ou douleur ce coup-ci ? (optionnel)</div>
               <div className="flex flex-wrap gap-1.5 justify-center mb-2">
                 {MUSCLE_ORDRE.filter((m) => m !== "Autre").map((m) => (
