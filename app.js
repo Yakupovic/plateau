@@ -209,20 +209,115 @@ function MiniLine({
 }
 
 // ————— Palette "plateau de muscu" (sol caoutchouc + jaune machines guidées) —————
-const C = {
+// Deux thèmes complets. Le jaune vif reste un FOND (jamais du texte) : sur clair il est illisible
+// en texte, d'où yellowDim ; sur sombre c'est l'inverse, le jaune vif devient le bon accent texte.
+const PALETTE_CLAIR = {
   bg: "#f6f4ef",
+  bgAlt: "#fdfbf5",
+  // fonds d'écrans pleine page (fin de séance, récap…)
+  bgOnb: "#faf8f2",
   card: "#ffffff",
   card2: "#efece3",
+  cardGrad: "linear-gradient(180deg, #ffffff, #fbf9f3)",
   line: "#e2ded2",
   hair: "rgba(20,16,8,0.12)",
   yellow: "#f5c518",
   yellowHi: "#ffe27a",
   yellowDim: "#8a5b00",
+  // accent LISIBLE en texte
+  onYellow: "#111",
+  // texte posé sur un fond jaune
   text: "#211f1a",
   dim: "#726c5e",
+  dim2: "#6a6a73",
   green: "#178a4c",
-  red: "#c93a2e"
+  red: "#c93a2e",
+  amber: "#b45309",
+  warnBg: "#fff6e0",
+  errBg: "#fbeceb",
+  okBg: "#eaf5ee",
+  okBg2: "#eafbf1",
+  okLine: "#c9f0d8",
+  disque: "radial-gradient(circle at 30% 25%, #f3f0e6, #e7e3d6)",
+  // silhouette : du muscle non travaillé au muscle bien chargé
+  m0: "#e6e1d2",
+  m1: "#dfd7bd",
+  m2: "#e9dba3",
+  m3: "#f2d066",
+  // schémas de mouvement
+  schMachine: "#4a4a54",
+  schBody: "#232128",
+  schGhost: "#a5a1b0",
+  schArrow: "#8a5b00",
+  // badges de niveau
+  nivAvance: "#7c5cd6",
+  nivInter: "#178a4c",
+  nivNovice: "#8a5b00",
+  nivDebut: "#5b6472",
+  medArgent: "#b8bdc7",
+  medBronze: "#c07a3e",
+  barreB: "#5b6cff",
+  glass: "rgba(255,255,255,.82)",
+  glassSoft: "rgba(255,255,255,.55)",
+  inset: "rgba(255,255,255,.6)",
+  off: "#c4bdab" // commande désactivée : discrète mais encore visible
 };
+const PALETTE_SOMBRE = {
+  bg: "#101014",
+  bgAlt: "#141419",
+  bgOnb: "#0e0e12",
+  card: "#1b1b21",
+  card2: "#25252d",
+  cardGrad: "linear-gradient(180deg, #1e1e25, #191920)",
+  line: "#33333d",
+  hair: "rgba(255,255,255,0.10)",
+  yellow: "#f5c518",
+  yellowHi: "#ffe27a",
+  yellowDim: "#f7d04a",
+  // sur fond sombre, l'accent lisible est le jaune CLAIR
+  onYellow: "#111",
+  text: "#f2efe6",
+  dim: "#a09a8c",
+  dim2: "#8f8f98",
+  green: "#4ade80",
+  red: "#f87171",
+  amber: "#fbbf24",
+  warnBg: "#2a2312",
+  errBg: "#2e1618",
+  okBg: "#12251a",
+  okBg2: "#12251a",
+  okLine: "#1f4a31",
+  disque: "radial-gradient(circle at 30% 25%, #2f2f38, #22222a)",
+  m0: "#2c2c34",
+  m1: "#3d3a2e",
+  m2: "#5c5330",
+  m3: "#a88a25",
+  schMachine: "#8b8b99",
+  schBody: "#d5d2e0",
+  schGhost: "#5a5766",
+  schArrow: "#f7d04a",
+  nivAvance: "#a78bfa",
+  nivInter: "#4ade80",
+  nivNovice: "#f7d04a",
+  nivDebut: "#9ca3af",
+  medArgent: "#c8ccd4",
+  medBronze: "#d99a5b",
+  barreB: "#8b95ff",
+  glass: "rgba(30,30,38,.88)",
+  glassSoft: "rgba(255,255,255,.05)",
+  inset: "rgba(255,255,255,.05)",
+  off: "#6b6b78"
+};
+// C est muté (pas réassigné) : toutes les lectures C.xxx faites au rendu suivent le thème.
+const C = {
+  ...PALETTE_CLAIR
+};
+const appliquerTheme = sombre => Object.assign(C, sombre ? PALETTE_SOMBRE : PALETTE_CLAIR);
+// applique le thème avant le tout premier rendu, pour éviter un flash clair
+try {
+  const brut = localStorage.getItem("pl:plateau-data");
+  if (brut && JSON.parse(brut).themeSombre === true) appliquerTheme(true);
+} catch {}
 const DISPLAY = {
   fontFamily: "'Anton', 'Arial Narrow', system-ui, sans-serif",
   letterSpacing: "0.02em"
@@ -375,27 +470,27 @@ const zoneVolume = (m, v) => {
   const [mev, mav, mrv] = r;
   if (v === 0) return {
     label: "aucun",
-    couleur: "#5b6472",
+    couleur: C.nivDebut,
     conseil: "rien cette semaine"
   };
   if (v < mev) return {
     label: "sous le minimum",
-    couleur: "#b45309",
+    couleur: C.amber,
     conseil: `vise ${mev}+ séries`
   };
   if (v <= mav) return {
     label: "zone efficace",
-    couleur: "#178a4c",
+    couleur: C.green,
     conseil: "bon volume"
   };
   if (v <= mrv) return {
     label: "volume élevé",
-    couleur: "#8a5b00",
+    couleur: C.yellowDim,
     conseil: "surveille la récup"
   };
   return {
     label: "au-delà du plafond",
-    couleur: "#c93a2e",
+    couleur: C.red,
     conseil: `au-dessus de ${mrv}, risque de surmenage`
   };
 };
@@ -1097,7 +1192,7 @@ function HiitTimer({
   return /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center",
     style: {
-      background: "radial-gradient(62% 46% at 50% 30%, rgba(245,197,24,.14), transparent 70%), #fdfbf5",
+      background: `radial-gradient(62% 46% at 50% 30%, rgba(245,197,24,.14), transparent 70%), ${C.bgAlt}`,
       paddingTop: "env(safe-area-inset-top)",
       paddingBottom: "env(safe-area-inset-bottom)"
     }
@@ -1241,13 +1336,13 @@ function PhotoCompareSlider({
   }), /*#__PURE__*/React.createElement("div", {
     className: "absolute top-2 left-2 text-xs font-bold px-2 py-1 rounded-full",
     style: {
-      background: "rgba(255,255,255,.88)",
+      background: "rgba(250,248,242,.92)",
       color: "#211f1a"
     }
   }, "Avant"), /*#__PURE__*/React.createElement("div", {
     className: "absolute top-2 right-2 text-xs font-bold px-2 py-1 rounded-full",
     style: {
-      background: "rgba(255,255,255,.88)",
+      background: "rgba(250,248,242,.92)",
       color: "#211f1a"
     }
   }, "Apr\xE8s")), /*#__PURE__*/React.createElement("input", {
@@ -1261,11 +1356,20 @@ function PhotoCompareSlider({
 }
 
 // ————— Schémas de mouvement —————
+// getters : la couleur est relue à chaque rendu, donc elle suit le thème actif
 const SCH = {
-  machine: "#4a4a54",
-  body: "#232128",
-  ghost: "#a5a1b0",
-  arrow: "#8a5b00"
+  get machine() {
+    return C.schMachine;
+  },
+  get body() {
+    return C.schBody;
+  },
+  get ghost() {
+    return C.schGhost;
+  },
+  get arrow() {
+    return C.schArrow;
+  }
 };
 const MOUVEMENTS = [["presse", ["presse", "leg press", "hack"]], ["extension-jambes", ["leg extension", "extension jambe", "extension cuisse", "quadriceps"]], ["curl-jambes", ["leg curl", "ischio", "curl jambe", "curl allonge"]], ["mollets", ["mollet", "calf"]], ["squat", ["squat", "fente"]], ["abducteurs", ["abducteur", "adducteur", "abduction", "abduc", "adduc"]], ["ouverture", ["reverse fly", "oiseau", "reverse", "face pull"]], ["ecartes", ["pec deck", "ecart", "fly", "butterfly"]], ["pulldown", ["pull down", "pulldown", "traction", "lat machine"]], ["row", ["row", "tirage", "rowing"]], ["press", ["shoulder", "press", "developpe", "militaire", "convergente", "dips", "pompe"]], ["triceps", ["triceps", "corde", "barre au front", "skull", "pushdown", "kickback"]], ["curl", ["curl", "biceps", "marteau"]], ["elevation", ["elevation", "lateral"]]];
 const mouvementOf = nom => {
@@ -2418,22 +2522,23 @@ const REPERES = {
     machine: false
   }
 };
-const NIVEAUX = [{
+// fonction (et non constante) pour que les couleurs suivent le thème actif
+const niveaux = () => [{
   seuil: 3,
   label: "Avancé",
-  color: "#7c5cd6"
+  color: C.nivAvance
 }, {
   seuil: 2,
   label: "Intermédiaire",
-  color: "#178a4c"
+  color: C.nivInter
 }, {
   seuil: 1,
   label: "Novice",
-  color: "#8a5b00"
+  color: C.nivNovice
 }, {
   seuil: 0,
   label: "Débutant",
-  color: "#5b6472"
+  color: C.nivDebut
 }];
 const repereFor = (nom, poidsCorps) => {
   const k = mouvementOf(nom);
@@ -2445,11 +2550,11 @@ const repereFor = (nom, poidsCorps) => {
   };
 };
 const niveauPour = (charge, paliers) => {
-  for (const n of NIVEAUX) if (charge >= paliers[n.seuil]) return n;
+  for (const n of niveaux()) if (charge >= paliers[n.seuil]) return n;
   return {
     seuil: -1,
     label: "En construction",
-    color: "#b45309"
+    color: C.amber
   };
 };
 
@@ -2591,13 +2696,13 @@ const CORPS_CONTOUR = "M80 8 C88.8 8 96 15.2 96 24 C96 32.8 88.8 40 80 40 C71.2 
 
 // Couleur d'un muscle selon son volume relatif (gris = négligé → jaune = travaillé → rouge = surchargé)
 const couleurMuscle = (v, max, cible) => {
-  if (!v) return "#e6e1d2";
+  if (!v) return C.m0;
   if (cible && v > cible) return C.red;
   const r = max > 0 ? v / max : 0;
   if (r >= 0.75) return C.yellow;
-  if (r >= 0.45) return "#f2d066";
-  if (r >= 0.2) return "#e9dba3";
-  return "#dfd7bd";
+  if (r >= 0.45) return C.m3;
+  if (r >= 0.2) return C.m2;
+  return C.m1;
 };
 function SilhouetteMuscles({
   volumes,
@@ -2632,7 +2737,7 @@ function SilhouetteMuscles({
     }
   }, /*#__PURE__*/React.createElement("path", {
     d: CORPS_CONTOUR,
-    fill: "#2a2a30",
+    fill: C.schBody,
     fillRule: "evenodd",
     stroke: C.hair,
     strokeWidth: "1.5"
@@ -2666,7 +2771,7 @@ function SilhouetteMuscles({
       width: 9,
       height: 9,
       borderRadius: 3,
-      background: "#e6e1d2",
+      background: C.m0,
       border: `1px solid ${C.hair}`,
       display: "inline-block"
     }
@@ -2727,12 +2832,12 @@ function Heatmap({
   }
   const teinte = (t, futur) => {
     if (futur) return "transparent";
-    if (!t) return "#e6e1d2";
+    if (!t) return C.m0;
     const r = t / maxT;
     if (r >= 0.75) return C.yellowHi;
     if (r >= 0.45) return C.yellow;
-    if (r >= 0.2) return "#f2d066";
-    return "#e9dba3";
+    if (r >= 0.2) return C.m3;
+    return C.m2;
   };
   return /*#__PURE__*/React.createElement("div", {
     className: "overflow-x-auto pb-1",
@@ -2786,7 +2891,7 @@ function RadarMuscles({
     key: k,
     points: groupes.map((_, i) => pt(i, r).join(",")).join(" "),
     fill: "none",
-    stroke: "#ddd7c4",
+    stroke: C.line,
     strokeWidth: "1"
   })), groupes.map((_, i) => {
     const [x, y] = pt(i, 1);
@@ -2796,7 +2901,7 @@ function RadarMuscles({
       y1: cy,
       x2: x,
       y2: y,
-      stroke: "#ddd7c4",
+      stroke: C.line,
       strokeWidth: "1"
     });
   }), /*#__PURE__*/React.createElement("polygon", {
@@ -2995,6 +3100,7 @@ const PrBadge = () => /*#__PURE__*/React.createElement("span", {
 // ————— App —————
 function App() {
   const [loaded, setLoaded] = useState(false);
+  const [, forcerRendu] = useState(0);
   const [data, setData] = useState(SEED_DATA);
   const [tab, setTab] = useState("accueil");
   const [current, setCurrent] = useState(null);
@@ -4554,6 +4660,20 @@ function App() {
     setDouleurNiveau(5);
     setTimeout(() => setDouleurOk(false), 2500);
   };
+  // ————— Thème clair / sombre —————
+  // C est muté puis on force un rendu : tous les C.xxx lus au rendu prennent la nouvelle valeur.
+  useEffect(() => {
+    appliquerTheme(data.themeSombre === true);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", C.bg);
+    document.documentElement.style.background = C.bg;
+    document.body.style.background = C.bg;
+    forcerRendu(n => n + 1);
+  }, [data.themeSombre]);
+  const basculerTheme = () => saveData({
+    ...data,
+    themeSombre: data.themeSombre === true ? false : true
+  });
   const CHECKLIST_DEFAUT = ["Gourde remplie", "Serviette", "Ceinture / gants", "Écouteurs chargés", "Tenue de rechange"];
   const checklistItems = data.checklist && data.checklist.length ? data.checklist : CHECKLIST_DEFAUT;
   const checklistCoches = (data.checklistCoche || {})[todayISO()] || [];
@@ -5119,7 +5239,7 @@ function App() {
     }
   }, /*#__PURE__*/React.createElement("style", null, `
         @keyframes plGo { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(1.06); } }
-        @keyframes plFlash { 0%,100% { background: #eafbf1; } 50% { background: #c9f0d8; } }
+        @keyframes plFlash { 0%,100% { background: ${C.okBg2}; } 50% { background: ${C.okLine}; } }
         .pl-go { animation: plGo 0.9s ease-in-out infinite; }
         .pl-flash { animation: plFlash 0.9s ease-in-out infinite; }
         input::placeholder, textarea::placeholder { color: ${C.dim}; opacity: .7; }
@@ -5143,8 +5263,8 @@ function App() {
           background: linear-gradient(${C.bg} 60%, rgba(246,244,239,0)); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 
         /* Carte */
-        .pl-card { background: linear-gradient(180deg, #ffffff, #fbf9f3); border: 1px solid ${C.hair};
-          box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 10px 22px -16px rgba(20,16,8,.18); }
+        .pl-card { background: ${C.cardGrad}; border: 1px solid ${C.hair};
+          box-shadow: 0 1px 0 ${C.inset} inset, 0 10px 22px -16px rgba(20,16,8,.18); }
 
         /* Feedback tactile */
         .pl-tap { transition: transform .12s ease, filter .18s ease; -webkit-tap-highlight-color: transparent; }
@@ -5184,7 +5304,7 @@ function App() {
         .pl-tabbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; z-index: 40; width: 100%; max-width: 28rem;
           display: flex; padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
           background: linear-gradient(rgba(246,244,239,0), ${C.bg} 40%); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
-        .pl-tabbar-in { display: flex; flex: 1; background: rgba(255,255,255,.82); border: 1px solid ${C.hair}; border-radius: 18px; padding: 5px; gap: 2px;
+        .pl-tabbar-in { display: flex; flex: 1; background: ${C.glass}; border: 1px solid ${C.hair}; border-radius: 18px; padding: 5px; gap: 2px;
           box-shadow: 0 10px 26px -16px rgba(20,16,8,.22); }
         .pl-tab { flex: 1; border: none; background: none; cursor: pointer; position: relative; border-radius: 13px;
           display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 7px 0 5px; }
@@ -5273,7 +5393,7 @@ function App() {
     onClick: () => setTab("seance"),
     className: "pl-tap flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold",
     style: {
-      background: "linear-gradient(180deg,#ffffff,#f3f0e6)",
+      background: C.disque,
       border: `1px solid ${C.hair}`,
       color: C.text
     }
@@ -5282,7 +5402,7 @@ function App() {
   }), " S\xE9ance \xB7 ", elapsedTxt))), storageOk === false && /*#__PURE__*/React.createElement("div", {
     className: "rounded-xl px-3 py-2 mb-3 text-xs font-semibold leading-relaxed",
     style: {
-      background: "#fbeceb",
+      background: C.errBg,
       border: `1px solid ${C.red}`,
       color: C.red
     }
@@ -5345,28 +5465,28 @@ function App() {
   }, elapsedTxt, " \xE9coul\xE9es")), !current && reposDepuis != null && reposDepuis >= 4 && /*#__PURE__*/React.createElement("div", {
     className: "rounded-xl px-3 py-2 text-xs font-semibold",
     style: {
-      background: "#fff6e0",
+      background: C.warnBg,
       border: `1px solid ${C.yellow}`,
       color: C.yellowDim
     }
   }, "\uD83D\uDE34 \xC7a fait ", reposDepuis, " jours \u2014 ", data.prochaine ? `${data.prochaine.nom} t'attend` : "prêt à repartir ?"), souvenirRecord && /*#__PURE__*/React.createElement("div", {
     className: "rounded-xl px-3 py-2 text-xs font-semibold",
     style: {
-      background: "#fff6e0",
+      background: C.warnBg,
       border: `1px solid ${C.yellow}`,
       color: C.yellowDim
     }
   }, "\uD83C\uDF89 Il y a 1 an jour pour jour, tu battais ton record de ", souvenirRecord.nom, " \xE0 ", fmtKg(souvenirRecord.poids), " kg."), alerteSurentrainement && /*#__PURE__*/React.createElement("div", {
     className: "rounded-xl px-3 py-2 text-xs font-semibold leading-relaxed",
     style: {
-      background: "#fbeceb",
+      background: C.errBg,
       border: `1px solid ${C.red}`,
       color: C.red
     }
   }, "\uD83D\uDED1 Signaux de surmenage : ", alerteSurentrainement.join(" · "), ". Une vraie journ\xE9e de repos te fera progresser plus qu'une s\xE9ance de plus."), alerteDouleur && /*#__PURE__*/React.createElement("div", {
     className: "rounded-xl px-3 py-2 text-xs font-semibold leading-relaxed",
     style: {
-      background: "#fbeceb",
+      background: C.errBg,
       border: `1px solid ${C.red}`,
       color: C.red
     }
@@ -5401,7 +5521,7 @@ function App() {
   }, seancesSemaine >= objSeances ? "Objectif atteint, bravo 💪" : `Plus que ${objSeances - seancesSemaine} séance${objSeances - seancesSemaine > 1 ? "s" : ""}`), /*#__PURE__*/React.createElement("div", {
     className: "text-xs mt-1",
     style: {
-      color: "#6a6a73"
+      color: C.dim2
     }
   }, "Tape pour changer l'objectif"))), seancesSemaine > 0 && /*#__PURE__*/React.createElement("button", {
     onClick: () => setRecapOuvert(true),
@@ -5475,7 +5595,7 @@ function App() {
     }, /*#__PURE__*/React.createElement("div", {
       className: "w-11 h-11 rounded-xl flex items-center justify-center shrink-0 text-xl",
       style: {
-        background: "radial-gradient(circle at 30% 25%, #f3f0e6, #e7e3d6)",
+        background: C.disque,
         border: `1px solid ${C.hair}`
       }
     }, repos ? "😴" : "🧠"), /*#__PURE__*/React.createElement("div", {
@@ -5533,7 +5653,7 @@ function App() {
   }, /*#__PURE__*/React.createElement("div", {
     className: "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-lg",
     style: {
-      background: "radial-gradient(circle at 30% 25%, #f3f0e6, #e7e3d6)",
+      background: C.disque,
       border: `1px solid ${C.hair}`
     }
   }, "\uD83D\uDCCB"), /*#__PURE__*/React.createElement("div", {
@@ -5945,6 +6065,14 @@ function App() {
       border: `1px solid ${data.grosBoutons === true ? C.yellow : C.line}`
     }
   }, "\uD83D\uDD18 Gros boutons ", data.grosBoutons === true ? "ON" : "OFF", " \u2014 plus faciles \xE0 viser quand t'es cram\xE9"), /*#__PURE__*/React.createElement("button", {
+    onClick: basculerTheme,
+    className: "w-full rounded-xl py-3 mb-3 font-semibold text-sm flex items-center justify-center gap-2",
+    style: {
+      background: data.themeSombre === true ? C.yellow : C.card2,
+      color: data.themeSombre === true ? C.onYellow : C.text,
+      border: `1px solid ${data.themeSombre === true ? C.yellow : C.line}`
+    }
+  }, data.themeSombre === true ? "🌙 Thème sombre" : "☀️ Thème clair", " \u2014 tape pour changer"), /*#__PURE__*/React.createElement("button", {
     onClick: () => saveData({
       ...data,
       modeSoleil: data.modeSoleil === true ? false : true
@@ -6195,7 +6323,7 @@ function App() {
   }, "\u23F1\uFE0F Timer HIIT")), cycleDe(data).deload && /*#__PURE__*/React.createElement("div", {
     className: "rounded-xl px-3 py-2 text-sm leading-relaxed",
     style: {
-      background: "#eaf5ee",
+      background: C.okBg,
       border: `1px solid ${C.green}`,
       color: C.green
     }
@@ -6436,7 +6564,7 @@ function App() {
       onClick: () => deplacerPlan(idx, -1),
       className: "px-1",
       style: {
-        color: idx === 0 ? C.line : C.dim
+        color: idx === 0 ? C.off : C.dim
       }
     }, /*#__PURE__*/React.createElement(ChevronUp, {
       size: 15
@@ -6444,7 +6572,7 @@ function App() {
       onClick: () => deplacerPlan(idx, 1),
       className: "px-1",
       style: {
-        color: idx === planSeance.length - 1 ? C.line : C.dim
+        color: idx === planSeance.length - 1 ? C.off : C.dim
       }
     }, /*#__PURE__*/React.createElement(ChevronDown, {
       size: 15
@@ -6743,7 +6871,7 @@ function App() {
   }, "Historique : ", histoOf(fNom.trim()).map(h => `${fmtShort(h.date)} ${fmtKg(h.poids)} kg`).join(" · ")), stag && !isCardio && /*#__PURE__*/React.createElement("div", {
     className: "rounded-xl px-3 py-2 mb-3 text-xs leading-relaxed",
     style: {
-      background: "#fbeceb",
+      background: C.errBg,
       border: `1px solid ${C.red}`
     }
   }, /*#__PURE__*/React.createElement("span", {
@@ -7189,12 +7317,12 @@ function App() {
     className: "text-xs font-bold",
     style: {
       ...NUMS,
-      color: seriesJour >= 24 ? C.red : seriesJour >= 18 ? "#b45309" : C.dim
+      color: seriesJour >= 24 ? C.red : seriesJour >= 18 ? C.amber : C.dim
     }
   }, seriesJour, " s\xE9ries")), seriesJour >= 18 && /*#__PURE__*/React.createElement("div", {
     className: "text-xs mb-2 leading-relaxed",
     style: {
-      color: seriesJour >= 24 ? C.red : "#b45309"
+      color: seriesJour >= 24 ? C.red : C.amber
     }
   }, seriesJour >= 24 ? "Volume très élevé pour une séance — au-delà, tu accumules surtout de la fatigue." : "Volume déjà solide — 16 à 20 séries par séance suffisent pour progresser."), [...current.exos].reverse().map(e => /*#__PURE__*/React.createElement("div", {
     key: e.id,
@@ -8537,7 +8665,7 @@ function App() {
     }
     const total = e.a + e.b;
     const pctA = e.a / total * 100;
-    const coul = e.etat === "ok" ? C.green : "#b45309";
+    const coul = e.etat === "ok" ? C.green : C.amber;
     return /*#__PURE__*/React.createElement("div", {
       key: e.label,
       className: "py-2",
@@ -8566,7 +8694,7 @@ function App() {
     }), /*#__PURE__*/React.createElement("div", {
       style: {
         width: `${100 - pctA}%`,
-        background: "#5b6cff"
+        background: C.barreB
       }
     })), /*#__PURE__*/React.createElement("div", {
       className: "text-xs mt-1",
@@ -8667,7 +8795,7 @@ function App() {
     }, "poids de corps"))), negliges.length > 0 ? /*#__PURE__*/React.createElement("div", {
       className: "text-sm",
       style: {
-        color: "#b45309"
+        color: C.amber
       }
     }, "N\xE9glig\xE9s ce mois-ci (30 j) : ", negliges.join(", "), ".") : /*#__PURE__*/React.createElement("div", {
       className: "text-sm",
@@ -8849,7 +8977,7 @@ function App() {
     const tuiles = [[sAn.length, "séances"], [series, "séries"], [Math.round(minutes / 60) + " h", "à la salle"], [prs, "records"]];
     return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Card, {
       style: {
-        background: "linear-gradient(165deg, rgba(245,197,24,.16), #fffdf7 60%)",
+        background: `linear-gradient(165deg, rgba(245,197,24,.16), ${C.bgAlt} 60%)`,
         border: "1px solid rgba(245,197,24,.28)"
       }
     }, /*#__PURE__*/React.createElement("div", {
@@ -8893,7 +9021,7 @@ function App() {
       key: i,
       className: "rounded-xl py-2.5 px-1 text-center",
       style: {
-        background: "rgba(255,255,255,.55)",
+        background: C.glassSoft,
         border: `1px solid ${C.hair}`
       }
     }, /*#__PURE__*/React.createElement("div", {
@@ -9026,7 +9154,7 @@ function App() {
       style: {
         color: C.dim
       }
-    }, /*#__PURE__*/React.createElement("span", null, "\u2212"), ["#e6e1d2", "#e9dba3", "#f2d066", C.yellow, C.yellowHi].map(c => /*#__PURE__*/React.createElement("i", {
+    }, /*#__PURE__*/React.createElement("span", null, "\u2212"), [C.m0, C.m2, C.m3, C.yellow, C.yellowHi].map(c => /*#__PURE__*/React.createElement("i", {
       key: c,
       style: {
         width: 11,
@@ -9090,7 +9218,7 @@ function App() {
     const ng = niveauGlobal(xp);
     return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Card, {
       style: {
-        background: "linear-gradient(165deg, rgba(245,197,24,.16), #fffdf7 60%)",
+        background: `linear-gradient(165deg, rgba(245,197,24,.16), ${C.bgAlt} 60%)`,
         border: "1px solid rgba(245,197,24,.28)"
       }
     }, /*#__PURE__*/React.createElement("div", {
@@ -9100,7 +9228,7 @@ function App() {
       style: {
         width: 66,
         height: 66,
-        background: "rgba(255,255,255,.6)",
+        background: C.glassSoft,
         border: `1px solid ${C.hair}`
       }
     }, /*#__PURE__*/React.createElement("div", {
@@ -9131,7 +9259,7 @@ function App() {
       className: "rounded-full overflow-hidden",
       style: {
         height: 8,
-        background: "rgba(255,255,255,.65)"
+        background: C.glassSoft
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
@@ -9181,7 +9309,7 @@ function App() {
       const niv = rp ? niveauPour(r.parBras ? r.poids * 2 : r.poids, rp.paliers) : null;
       const j = joursDepuis(r.date);
       const medaille = j < 7 ? "🥇" : j < 30 ? "🥈" : "🥉";
-      const medailleCouleur = j < 7 ? "#f5c518" : j < 30 ? "#b8bdc7" : "#c07a3e";
+      const medailleCouleur = j < 7 ? C.yellow : j < 30 ? C.medArgent : C.medBronze;
       return /*#__PURE__*/React.createElement("button", {
         key: r.nom,
         onClick: () => setFicheExo(r.nom),
@@ -9207,7 +9335,7 @@ function App() {
         className: "text-base font-bold mt-0.5",
         style: {
           ...NUMS,
-          color: medailleCouleur === "#f5c518" ? C.yellowDim : C.text
+          color: j < 7 ? C.yellowDim : C.text
         }
       }, fmtKg(r.poids), " kg", r.parBras ? "/bras" : ""), niv && /*#__PURE__*/React.createElement("div", {
         className: "text-xs mt-0.5",
@@ -9492,7 +9620,7 @@ function App() {
     return /*#__PURE__*/React.createElement("div", {
       className: "fixed inset-0 z-50 flex flex-col",
       style: {
-        background: "#faf8f2"
+        background: C.bgOnb
       }
     }, /*#__PURE__*/React.createElement("div", {
       className: "max-w-md mx-auto w-full flex flex-col h-full px-5",
@@ -9735,7 +9863,7 @@ function App() {
     return /*#__PURE__*/React.createElement("div", {
       className: "fixed inset-0 z-50 flex flex-col" + (done ? " pl-flash" : ""),
       style: {
-        background: done ? "#eafbf1" : "#faf8f2"
+        background: done ? C.okBg2 : C.bgOnb
       }
     }, /*#__PURE__*/React.createElement("div", {
       className: "max-w-md mx-auto w-full flex flex-col h-full px-5",
@@ -9820,7 +9948,7 @@ function App() {
       className: "w-full rounded-2xl py-6 text-2xl font-black",
       style: {
         background: C.green,
-        color: "#0c1a10"
+        color: C.onYellow
       }
     }, "Je repars"), /*#__PURE__*/React.createElement("button", {
       onClick: () => relancer(rest.total),
@@ -9875,7 +10003,7 @@ function App() {
   })(), loaded && !data.onboarded && data.seances.length === 0 && !current && !bilanSeance && /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-50 flex flex-col px-6 overflow-y-auto",
     style: {
-      background: "radial-gradient(72% 45% at 50% 10%, rgba(245,197,24,.14), transparent 70%), #faf8f2",
+      background: `radial-gradient(72% 45% at 50% 10%, rgba(245,197,24,.14), transparent 70%), ${C.bgOnb}`,
       paddingTop: "calc(env(safe-area-inset-top) + 3rem)",
       paddingBottom: "calc(env(safe-area-inset-bottom) + 2rem)"
     }
@@ -9971,7 +10099,7 @@ function App() {
     return /*#__PURE__*/React.createElement("div", {
       className: "fixed inset-0 z-50 flex flex-col px-5 py-6 overflow-y-auto",
       style: {
-        background: "#fdfbf5"
+        background: C.bgAlt
       }
     }, /*#__PURE__*/React.createElement("div", {
       className: "flex items-center justify-between mb-4"
@@ -10010,7 +10138,7 @@ function App() {
     return /*#__PURE__*/React.createElement("div", {
       className: "fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center overflow-y-auto",
       style: {
-        background: "radial-gradient(62% 46% at 50% 28%, rgba(245,197,24,.13), transparent 70%), #fdfbf5",
+        background: `radial-gradient(62% 46% at 50% 28%, rgba(245,197,24,.13), transparent 70%), ${C.bgAlt}`,
         paddingTop: "env(safe-area-inset-top)",
         paddingBottom: "env(safe-area-inset-bottom)"
       }
@@ -10102,7 +10230,7 @@ function App() {
     return /*#__PURE__*/React.createElement("div", {
       className: "fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center overflow-y-auto",
       style: {
-        background: "radial-gradient(62% 46% at 50% 28%, rgba(245,197,24,.13), transparent 70%), #fdfbf5",
+        background: `radial-gradient(62% 46% at 50% 28%, rgba(245,197,24,.13), transparent 70%), ${C.bgAlt}`,
         paddingTop: "env(safe-area-inset-top)",
         paddingBottom: "env(safe-area-inset-bottom)"
       }
