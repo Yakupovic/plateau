@@ -15,15 +15,22 @@
 
 
 
-<link rel="stylesheet" href="app.css?v=1787047398783" />
+<link rel="stylesheet" href="app.css?v=1787260185503" />
 <style>
   /* Tailwind dimensionne tout en rem : agrandir la racine agrandit texte ET espacements.
      Pas d'override de font-size sur input/button ici : ça entrait en conflit avec les
      classes Tailwind (text-lg etc.) posées au cas par cas et rendait certains champs petits. */
-  html { font-size: 19px; }
+  html { font-size: 19px; -webkit-text-size-adjust: 100%; }
   html, body { margin: 0; padding: 0; background: #f6f4ef; -webkit-tap-highlight-color: transparent; }
+  /* iOS : empêche le rebond élastique qui laisse voir du blanc derrière l'app installée */
+  html, body { overscroll-behavior-y: none; }
   * { box-sizing: border-box; }
-  #root { min-height: 100vh; }
+  /* iOS : 100vh compte la barre d'adresse — dvh donne la hauteur réellement visible */
+  #root { min-height: 100vh; min-height: 100dvh; }
+  /* iOS : pas de menu « copier » ni de sélection sur un appui long des commandes */
+  button, .pl-tap, nav { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  /* iOS zoome sur un champ dont le texte fait moins de 16 px — on garde un plancher */
+  input, textarea, select { font-size: max(16px, 1em); }
   .boot { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px;
           color: #726c5e; font-family: system-ui, sans-serif; font-size: 14px; text-align: center; }
   .boot b { color: #8a5b00; display: block; margin-bottom: 8px; font-size: 16px; }
@@ -86,12 +93,12 @@
   <div class="splash-plate"></div>
 </div>
 <div id="root"><div class="boot"><div><b>PLATEAU.</b>Chargement…</div></div></div>
-<script src="react.js?v=1787047398783"></script>
-<script src="react-dom.js?v=1787047398783"></script>
+<script src="react.js?v=1787260185503"></script>
+<script src="react-dom.js?v=1787260185503"></script>
 <script>
   if (!window.React || !window.ReactDOM) window.__plateauBoot("React n'a pas pu être chargé (réseau ?)");
 </script>
-<script src="app.js?v=1787047398783"></script>
+<script src="app.js?v=1787260185503"></script>
 <script>
   (function () {
     var m = document.createElement("meta");

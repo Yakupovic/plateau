@@ -360,6 +360,46 @@ const musclesText = d => {
   return MUSCLE_ORDRE.filter(m => m !== "Autre" || v[m]).map(m => `${m} ${v[m] || 0}`).join(", ");
 };
 
+// Repères de volume hebdo par muscle (littérature hypertrophie : minimum / optimal / plafond)
+const VOLUME_REPERES = {
+  Pecs: [8, 16, 22],
+  Dos: [10, 18, 25],
+  Épaules: [8, 16, 22],
+  Biceps: [6, 14, 20],
+  Triceps: [6, 14, 20],
+  Jambes: [8, 18, 24]
+};
+const zoneVolume = (m, v) => {
+  const r = VOLUME_REPERES[m];
+  if (!r) return null;
+  const [mev, mav, mrv] = r;
+  if (v === 0) return {
+    label: "aucun",
+    couleur: "#5b6472",
+    conseil: "rien cette semaine"
+  };
+  if (v < mev) return {
+    label: "sous le minimum",
+    couleur: "#b45309",
+    conseil: `vise ${mev}+ séries`
+  };
+  if (v <= mav) return {
+    label: "zone efficace",
+    couleur: "#178a4c",
+    conseil: "bon volume"
+  };
+  if (v <= mrv) return {
+    label: "volume élevé",
+    couleur: "#8a5b00",
+    conseil: "surveille la récup"
+  };
+  return {
+    label: "au-delà du plafond",
+    couleur: "#c93a2e",
+    conseil: `au-dessus de ${mrv}, risque de surmenage`
+  };
+};
+
 // ————— Poids de corps + mensurations —————
 const poidsText = d => {
   const arr = d.poids || [];
@@ -718,6 +758,85 @@ const volumeSemaines = (d, n = 8) => {
   }));
 };
 
+// ————— XP & niveau global —————
+const TITRES_NIVEAU = ["Débutant", "Habitué", "Régulier", "Assidu", "Solide", "Costaud", "Machine", "Vétéran", "Bête de salle", "Légende"];
+const xpTotal = d => {
+  const seances = d.seances.length;
+  const series = d.seances.reduce((a, s) => a + s.exos.reduce((x, e) => x + (e.type === "cardio" ? 0 : e.series || 0), 0), 0);
+  const records = d.seances.reduce((a, s) => a + s.exos.filter(e => e.pr).length, 0);
+  const tonnage = d.seances.reduce((a, s) => a + tonnageSeance(s), 0);
+  return Math.round(seances * 100 + series * 5 + records * 250 + tonnage / 100);
+};
+const niveauGlobal = xp => {
+  // paliers quadratiques : niveau n atteint à 500·n² XP
+  const niveau = Math.max(1, Math.floor(Math.sqrt(xp / 500)) + 1);
+  const xpNiveau = 500 * Math.pow(niveau - 1, 2);
+  const xpSuivant = 500 * Math.pow(niveau, 2);
+  const pct = xpSuivant > xpNiveau ? Math.round((xp - xpNiveau) / (xpSuivant - xpNiveau) * 100) : 0;
+  return {
+    niveau,
+    titre: TITRES_NIVEAU[Math.min(TITRES_NIVEAU.length - 1, niveau - 1)],
+    xp,
+    xpSuivant,
+    pct: Math.max(0, Math.min(100, pct))
+  };
+};
+
+// ————— Calories estimées (MET ~5 pour la muscu, ~6 en cardio) —————
+const caloriesSeance = (s, poidsCorps) => {
+  if (!s.duree || !poidsCorps) return null;
+  const cardio = (s.exos || []).some(e => e.type === "cardio");
+  const met = cardio ? 6 : 5;
+  return Math.round(met * poidsCorps * (s.duree / 60));
+};
+
+// ————— RPE moyen par semaine —————
+const rpeSemaines = (d, n = 8) => {
+  const parSem = {};
+  d.seances.forEach(s => {
+    const rpes = s.exos.map(e => e.rpe).filter(r => r != null);
+    if (!rpes.length) return;
+    const k = mondayOf(s.date);
+    parSem[k] = parSem[k] || {
+      total: 0,
+      n: 0
+    };
+    rpes.forEach(r => {
+      parSem[k].total += r;
+      parSem[k].n++;
+    });
+  });
+  return Object.keys(parSem).sort().slice(-n).map(k => ({
+    date: fmtShort(k),
+    rpe: Math.round(parSem[k].total / parSem[k].n * 10) / 10
+  }));
+};
+
+// ————— Corrélation sommeil / performance —————
+const correlationSommeil = d => {
+  const jours = d.jours || {};
+  const avec = [];
+  d.seances.forEach(s => {
+    const h = (jours[s.date] || {}).sommeil;
+    if (h == null) return;
+    avec.push({
+      h,
+      tonnage: tonnageSeance(s)
+    });
+  });
+  if (avec.length < 4) return null;
+  const bien = avec.filter(x => x.h >= 7);
+  const mal = avec.filter(x => x.h < 7);
+  if (!bien.length || !mal.length) return null;
+  const moy = arr => Math.round(arr.reduce((a, x) => a + x.tonnage, 0) / arr.length);
+  return {
+    bien: moy(bien),
+    mal: moy(mal),
+    nBien: bien.length,
+    nMal: mal.length
+  };
+};
+
 // ————— Contexte complet envoyé au coach —————
 const buildContext = d => `Historique des séances :\n${histText(d.seances)}\n\n` + `Récup des 7 derniers jours :\n${recupText(d)}\n\n` + `Séries des 7 derniers jours par groupe musculaire : ${musclesText(d)}\n` + `Streak : ${streakSemaines(d)} semaine(s) consécutive(s) avec au moins 2 séances.\n` + (d.prochaine ? `Prochaine séance planifiée : ${d.prochaine.nom} le ${d.prochaine.date}.\n` : "") + poidsText(d) + (mensuText(d) ? `\n${mensuText(d)}` : "") + (objectifsText(d) ? `\n${objectifsText(d)}` : "") + (stagText(d) ? `\n${stagText(d)}` : "") + `\n${cycleText(d)}` + (equilibreText(d) ? `\n${equilibreText(d)}` : "") + (ciblesText(d) ? `\n${ciblesText(d)}` : "");
 const COACH_BASE = passages => `Tu es le coach de musculation personnel de l’utilisateur, qui s'entraîne en salle sur machines guidées. ` + `Tu tutoies, ton direct, naturel et chaleureux, en français. Réponds UNIQUEMENT en phrases simples : pas de listes, pas de markdown, pas d'émojis. ` + `Règles de progression : ressenti "de la marge" = proposer +2 à 2,5 kg la prochaine fois ; "ça tirait" = garder la même charge. ` + `Il n'a encore jamais travaillé les jambes (première séance Jambes prévue le 22/07/2026) : encourage-le quand c'est pertinent, sans le harceler. ` + `La douche rapide juste après la séance compte beaucoup pour lui (santé de la peau) : glisse un rappel en fin de séance si elle n'est pas notée comme faite. ` + `Tiens compte de son sommeil, de son alimentation et de l'espacement de ses séances quand ces infos sont fournies : moins de 6 h de sommeil ou une alimentation légère un jour de séance méritent un conseil. ` + `Objectif de poids de corps : ${OBJECTIF_POIDS} kg (prise de masse, entraînement 100 % naturel). Quand un record perso est signalé, félicite sobrement. ` + `Date du jour : ${new Date().toLocaleDateString("fr-FR")}. ` + (passages != null ? `Assiduité : ${passages} passages en salle, prochain palier à 25 (puis 50) — motive-le dessus quand c'est pertinent, sans en faire trop.` : "");
@@ -884,6 +1003,179 @@ function PhotoThumb({
       border: `1px solid ${C.line}`
     }
   });
+}
+
+// ————— Timer d'intervalles (Tabata / EMOM / HIIT) —————
+const HIIT_PRESETS = [{
+  nom: "Tabata",
+  work: 20,
+  rest: 10,
+  rounds: 8
+}, {
+  nom: "HIIT 30/30",
+  work: 30,
+  rest: 30,
+  rounds: 10
+}, {
+  nom: "EMOM 10",
+  work: 60,
+  rest: 0,
+  rounds: 10
+}, {
+  nom: "45/15",
+  work: 45,
+  rest: 15,
+  rounds: 12
+}];
+function HiitTimer({
+  onClose,
+  onBip
+}) {
+  const [preset, setPreset] = useState(HIIT_PRESETS[0]);
+  const [enCours, setEnCours] = useState(false);
+  // un seul état pour éviter les mises à jour croisées entre round / phase / compte à rebours
+  const [etat, setEtat] = useState({
+    round: 1,
+    phase: "work",
+    reste: HIIT_PRESETS[0].work
+  });
+  const {
+    round,
+    phase,
+    reste
+  } = etat;
+  // onBip vient du parent qui re-render en continu : sans ref, l'intervalle serait recréé sans cesse
+  const bipRef = useRef(onBip);
+  useEffect(() => {
+    bipRef.current = onBip;
+  }, [onBip]);
+  useEffect(() => {
+    if (!enCours) return;
+    const iv = setInterval(() => {
+      setEtat(e => {
+        if (e.phase === "fini") return e;
+        if (e.reste > 1) return {
+          ...e,
+          reste: e.reste - 1
+        };
+        if (bipRef.current) bipRef.current();
+        // la phase se termine : effort -> repos, ou passage au round suivant
+        if (e.phase === "work" && preset.rest > 0) return {
+          ...e,
+          phase: "rest",
+          reste: preset.rest
+        };
+        if (e.round >= preset.rounds) return {
+          ...e,
+          phase: "fini",
+          reste: 0
+        };
+        return {
+          round: e.round + 1,
+          phase: "work",
+          reste: preset.work
+        };
+      });
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [enCours, preset]);
+  useEffect(() => {
+    if (phase === "fini") setEnCours(false);
+  }, [phase]);
+  const reinit = p => {
+    setPreset(p);
+    setEnCours(false);
+    setEtat({
+      round: 1,
+      phase: "work",
+      reste: p.work
+    });
+  };
+  const couleur = phase === "fini" ? C.green : phase === "work" ? C.yellow : C.card2;
+  const total = phase === "work" ? preset.work : preset.rest;
+  const pct = total > 0 ? (total - reste) / total * 100 : 0;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center",
+    style: {
+      background: "radial-gradient(62% 46% at 50% 30%, rgba(245,197,24,.14), transparent 70%), #fdfbf5",
+      paddingTop: "env(safe-area-inset-top)",
+      paddingBottom: "env(safe-area-inset-bottom)"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "absolute top-4 right-4 w-10 h-10 rounded-xl flex items-center justify-center",
+    style: {
+      background: C.card2,
+      color: C.text,
+      top: "calc(1rem + env(safe-area-inset-top))"
+    }
+  }, /*#__PURE__*/React.createElement(X, {
+    size: 18
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-2 justify-center mb-8",
+    style: {
+      maxWidth: 340
+    }
+  }, HIIT_PRESETS.map(p => /*#__PURE__*/React.createElement(Chip, {
+    key: p.nom,
+    active: preset.nom === p.nom,
+    onClick: () => reinit(p)
+  }, p.nom))), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs font-extrabold tracking-widest uppercase",
+    style: {
+      color: C.dim
+    }
+  }, phase === "fini" ? "Terminé" : phase === "work" ? "Effort" : "Repos", phase !== "fini" && ` · round ${round}/${preset.rounds}`), /*#__PURE__*/React.createElement("div", {
+    className: "leading-none my-3",
+    style: {
+      ...DISPLAY,
+      ...NUMS,
+      fontSize: 84,
+      color: phase === "rest" ? C.dim : C.text
+    }
+  }, phase === "fini" ? "✓" : reste), /*#__PURE__*/React.createElement("div", {
+    className: "rounded-full overflow-hidden mb-8",
+    style: {
+      width: 280,
+      maxWidth: "80%",
+      height: 10,
+      background: C.card2
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: `${pct}%`,
+      height: "100%",
+      background: couleur,
+      transition: "width 1s linear"
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-3 w-full",
+    style: {
+      maxWidth: 340
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => reinit(preset),
+    className: "pl-tap flex-1 rounded-2xl py-4 font-bold",
+    style: {
+      background: C.card,
+      border: `1px solid ${C.line}`,
+      color: C.text
+    }
+  }, "R\xE9initialiser"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      if (phase === "fini") reinit(preset);else setEnCours(!enCours);
+    },
+    className: "pl-tap flex-1 rounded-2xl py-4 font-black",
+    style: {
+      background: C.yellow,
+      color: "#111"
+    }
+  }, phase === "fini" ? "Recommencer" : enCours ? "Pause" : "Démarrer")), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs mt-4",
+    style: {
+      color: C.dim
+    }
+  }, preset.work, " s d'effort", preset.rest > 0 ? ` · ${preset.rest} s de repos` : "", " \xB7 ", preset.rounds, " rounds"));
 }
 function PhotoCompareSlider({
   avantId,
@@ -2799,6 +3091,8 @@ function App() {
   // Fin de séance fêtée + onboarding + confettis PR
   const [bilanSeance, setBilanSeance] = useState(null);
   const [recapOuvert, setRecapOuvert] = useState(false);
+  const [checklistOuverte, setChecklistOuverte] = useState(false);
+  const [hiitOuvert, setHiitOuvert] = useState(false);
   const [douleurZone, setDouleurZone] = useState(null);
   const [douleurNiveau, setDouleurNiveau] = useState(5);
   const [douleurOk, setDouleurOk] = useState(false);
@@ -4260,6 +4554,43 @@ function App() {
     setDouleurNiveau(5);
     setTimeout(() => setDouleurOk(false), 2500);
   };
+  const CHECKLIST_DEFAUT = ["Gourde remplie", "Serviette", "Ceinture / gants", "Écouteurs chargés", "Tenue de rechange"];
+  const checklistItems = data.checklist && data.checklist.length ? data.checklist : CHECKLIST_DEFAUT;
+  const checklistCoches = (data.checklistCoche || {})[todayISO()] || [];
+  const toggleCheck = item => {
+    const jour = todayISO();
+    const actuels = (data.checklistCoche || {})[jour] || [];
+    const next = actuels.includes(item) ? actuels.filter(x => x !== item) : [...actuels, item];
+    saveData({
+      ...data,
+      checklistCoche: {
+        [jour]: next
+      }
+    });
+  };
+  const editerChecklist = () => {
+    const v = window.prompt("Ta checklist, un élément par ligne :", checklistItems.join("\n"));
+    if (v === null) return;
+    const liste = v.split("\n").map(x => x.trim()).filter(Boolean);
+    saveData({
+      ...data,
+      checklist: liste.length ? liste : null
+    });
+  };
+  const alerteSurentrainement = useMemo(() => {
+    const isoMin = isoOf(new Date(Date.now() - 7 * 86400000));
+    const recentes = data.seances.filter(s => s.date >= isoMin);
+    if (recentes.length < 5) return null;
+    const rpes = recentes.flatMap(s => s.exos.map(e => e.rpe).filter(r => r != null));
+    const rpeMoy = rpes.length ? rpes.reduce((a, b) => a + b, 0) / rpes.length : null;
+    const nuits = Object.keys(data.jours || {}).filter(d => d >= isoMin).map(d => (data.jours[d] || {}).sommeil).filter(h => h != null);
+    const sommeilMoy = nuits.length ? nuits.reduce((a, b) => a + b, 0) / nuits.length : null;
+    const signaux = [];
+    if (recentes.length >= 6) signaux.push(`${recentes.length} séances en 7 jours`);
+    if (rpeMoy != null && rpeMoy >= 8.5) signaux.push(`RPE moyen ${Math.round(rpeMoy * 10) / 10}/10`);
+    if (sommeilMoy != null && sommeilMoy < 6.5) signaux.push(`${Math.round(sommeilMoy * 10) / 10} h de sommeil`);
+    return signaux.length >= 2 ? signaux : null;
+  }, [data.seances, data.jours]);
   const alerteDouleur = useMemo(() => {
     const list = data.douleurs || [];
     const isoMin = isoOf(new Date(Date.now() - 14 * 86400000));
@@ -4806,7 +5137,9 @@ function App() {
         .pl-content { position: relative; z-index: 1; }
 
         /* Header collant */
-        .pl-header { position: sticky; top: 0; z-index: 20; margin: 0 -1rem; padding: 0.9rem 1rem 0.7rem;
+        /* safe-area-inset-top vaut 0 hors encoche : sûr en PWA plein écran comme dans Safari */
+        .pl-header { position: sticky; top: 0; z-index: 20; margin: 0 -1rem;
+          padding: calc(0.9rem + env(safe-area-inset-top)) 1rem 0.7rem;
           background: linear-gradient(${C.bg} 60%, rgba(246,244,239,0)); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 
         /* Carte */
@@ -4868,6 +5201,10 @@ function App() {
         .pl-confetti i { position: absolute; top: -12px; width: 8px; height: 14px; border-radius: 2px; animation: plFall linear forwards; }
         @keyframes plFall { to { transform: translateY(105vh) rotate(720deg); opacity: .1 } }
 
+        /* iOS : dvh suit la hauteur réellement visible quand la barre Safari se rétracte */
+        .pl-root { min-height: 100dvh; }
+        /* Confort tactile : 44 px, la cible minimum recommandée par Apple */
+        .pl-touch { min-height: 44px; display: inline-flex; align-items: center; }
         .pl-soleil { filter: contrast(1.22) saturate(1.15); }
         .pl-flame-pulse { animation: plFlamePulse 1.6s ease-in-out infinite; }
         @keyframes plFlamePulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.18); opacity: .82; } }
@@ -5019,7 +5356,14 @@ function App() {
       border: `1px solid ${C.yellow}`,
       color: C.yellowDim
     }
-  }, "\uD83C\uDF89 Il y a 1 an jour pour jour, tu battais ton record de ", souvenirRecord.nom, " \xE0 ", fmtKg(souvenirRecord.poids), " kg."), alerteDouleur && /*#__PURE__*/React.createElement("div", {
+  }, "\uD83C\uDF89 Il y a 1 an jour pour jour, tu battais ton record de ", souvenirRecord.nom, " \xE0 ", fmtKg(souvenirRecord.poids), " kg."), alerteSurentrainement && /*#__PURE__*/React.createElement("div", {
+    className: "rounded-xl px-3 py-2 text-xs font-semibold leading-relaxed",
+    style: {
+      background: "#fbeceb",
+      border: `1px solid ${C.red}`,
+      color: C.red
+    }
+  }, "\uD83D\uDED1 Signaux de surmenage : ", alerteSurentrainement.join(" · "), ". Une vraie journ\xE9e de repos te fera progresser plus qu'une s\xE9ance de plus."), alerteDouleur && /*#__PURE__*/React.createElement("div", {
     className: "rounded-xl px-3 py-2 text-xs font-semibold leading-relaxed",
     style: {
       background: "#fbeceb",
@@ -5065,7 +5409,60 @@ function App() {
     style: {
       color: C.yellowDim
     }
-  }, "\uD83D\uDCD6 Voir le r\xE9cap de ma semaine \u2192"), !current && (() => {
+  }, "\uD83D\uDCD6 Voir le r\xE9cap de ma semaine \u2192"), !current && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setChecklistOuverte(!checklistOuverte),
+    className: "w-full flex items-center justify-between text-left"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-bold"
+  }, "Avant de partir"), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs mt-0.5",
+    style: {
+      color: checklistCoches.length === checklistItems.length ? C.green : C.dim
+    }
+  }, checklistCoches.length, "/", checklistItems.length, " pr\xEAt", checklistCoches.length > 1 ? "s" : "", checklistCoches.length === checklistItems.length ? " — tout est bon 👍" : "")), checklistOuverte ? /*#__PURE__*/React.createElement(ChevronUp, {
+    size: 16,
+    style: {
+      color: C.dim
+    }
+  }) : /*#__PURE__*/React.createElement(ChevronDown, {
+    size: 16,
+    style: {
+      color: C.dim
+    }
+  })), checklistOuverte && /*#__PURE__*/React.createElement("div", {
+    className: "mt-3"
+  }, checklistItems.map(item => {
+    const coche = checklistCoches.includes(item);
+    return /*#__PURE__*/React.createElement("button", {
+      key: item,
+      onClick: () => toggleCheck(item),
+      className: "w-full flex items-center gap-2.5 py-2 text-left",
+      style: {
+        borderTop: `1px solid ${C.line}`
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "rounded-md flex items-center justify-center shrink-0 text-xs",
+      style: {
+        width: 22,
+        height: 22,
+        background: coche ? C.green : C.card2,
+        border: `1px solid ${coche ? C.green : C.line}`,
+        color: "#fff"
+      }
+    }, coche ? "✓" : ""), /*#__PURE__*/React.createElement("span", {
+      className: "text-sm",
+      style: {
+        color: coche ? C.dim : C.text,
+        textDecoration: coche ? "line-through" : "none"
+      }
+    }, item));
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: editerChecklist,
+    className: "text-xs font-semibold mt-2",
+    style: {
+      color: C.yellowDim
+    }
+  }, "\u270F\uFE0F Modifier ma liste"))), !current && (() => {
     const reco = seanceConseillee(data);
     const repos = reco.type === "repos";
     return /*#__PURE__*/React.createElement(Card, {
@@ -5779,15 +6176,23 @@ function App() {
     }
   }, /*#__PURE__*/React.createElement(Plus, {
     size: 14
-  })))), /*#__PURE__*/React.createElement("a", {
+  })))), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between px-1"
+  }, /*#__PURE__*/React.createElement("a", {
     href: `https://open.spotify.com/search/${encodeURIComponent(current.nom + " workout musculation playlist")}`,
     target: "_blank",
     rel: "noreferrer",
-    className: "w-full text-left text-xs px-1 flex items-center gap-1",
+    className: "pl-touch text-xs gap-1",
     style: {
       color: C.yellowDim
     }
-  }, "\uD83C\uDFB5 Playlist d'entra\xEEnement \u2192"), cycleDe(data).deload && /*#__PURE__*/React.createElement("div", {
+  }, "\uD83C\uDFB5 Playlist d'entra\xEEnement \u2192"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setHiitOuvert(true),
+    className: "pl-touch text-xs font-semibold",
+    style: {
+      color: C.yellowDim
+    }
+  }, "\u23F1\uFE0F Timer HIIT")), cycleDe(data).deload && /*#__PURE__*/React.createElement("div", {
     className: "rounded-xl px-3 py-2 text-sm leading-relaxed",
     style: {
       background: "#eaf5ee",
@@ -7548,7 +7953,10 @@ function App() {
       style: {
         color: C.dim
       }
-    }, fmtDate(s.date), s.duree ? ` · ${fmtDuree(s.duree)}` : "", s.gourdes != null ? ` · ${s.gourdes} 🥤` : "", ` · ${s.exos.length} exos`)), open ? /*#__PURE__*/React.createElement(ChevronUp, {
+    }, fmtDate(s.date), s.duree ? ` · ${fmtDuree(s.duree)}` : "", s.gourdes != null ? ` · ${s.gourdes} 🥤` : "", ` · ${s.exos.length} exos`, (() => {
+      const kcal = caloriesSeance(s, poidsCorps);
+      return kcal ? ` · ~${kcal} kcal` : "";
+    })())), open ? /*#__PURE__*/React.createElement(ChevronUp, {
       size: 18,
       style: {
         color: C.dim
@@ -8089,13 +8497,21 @@ function App() {
         width: `${pct}%`,
         transition: "width 0.4s"
       }
-    })));
+    })), (() => {
+      const z = zoneVolume(m, v);
+      return z ? /*#__PURE__*/React.createElement("div", {
+        className: "text-xs mt-0.5",
+        style: {
+          color: z.couleur
+        }
+      }, z.label, " \u2014 ", z.conseil) : null;
+    })());
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-xs mt-1",
     style: {
       color: C.dim
     }
-  }, "Tape un groupe pour fixer sa cible de s\xE9ries hebdo. Un groupe \xE0 0 m\xE9rite ta prochaine s\xE9ance."), /*#__PURE__*/React.createElement("div", {
+  }, "Tape un groupe pour fixer sa cible de s\xE9ries hebdo. Les rep\xE8res (minimum / zone efficace / plafond) viennent des recommandations classiques en hypertrophie \u2014 indicatifs, pas une r\xE8gle absolue."), /*#__PURE__*/React.createElement("div", {
     className: "mt-4 pt-3",
     style: {
       borderTop: `1px solid ${C.line}`
@@ -8333,7 +8749,67 @@ function App() {
       dataKey: "kg",
       color: C.yellow,
       height: 220
-    })));
+    })), (() => {
+      const rpes = rpeSemaines(data, 8);
+      if (rpes.length < 2) return null;
+      const dernier = rpes[rpes.length - 1].rpe;
+      return /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+        className: "text-sm font-bold mb-1"
+      }, "Effort ressenti (RPE), par semaine"), /*#__PURE__*/React.createElement("div", {
+        className: "text-xs mb-3",
+        style: {
+          color: C.dim
+        }
+      }, "Un RPE qui grimpe alors que les charges stagnent = fatigue accumul\xE9e.", " ", "Cette semaine : ", /*#__PURE__*/React.createElement("b", {
+        style: {
+          color: dernier >= 9 ? C.red : dernier >= 8 ? C.yellowDim : C.green
+        }
+      }, dernier, "/10")), /*#__PURE__*/React.createElement(MiniLine, {
+        data: rpes,
+        dataKey: "rpe",
+        color: C.yellowDim,
+        height: 180
+      }));
+    })(), (() => {
+      const cs = correlationSommeil(data);
+      if (!cs) return null;
+      const ecart = cs.bien - cs.mal;
+      const pct = cs.mal > 0 ? Math.round(ecart / cs.mal * 100) : 0;
+      return /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+        className: "text-sm font-bold mb-2"
+      }, "Sommeil et performance"), /*#__PURE__*/React.createElement("div", {
+        className: "grid grid-cols-2 gap-3 mb-2"
+      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+        className: "text-lg",
+        style: {
+          ...DISPLAY,
+          ...NUMS,
+          color: C.green
+        }
+      }, cs.bien.toLocaleString("fr-FR"), " kg"), /*#__PURE__*/React.createElement("div", {
+        className: "text-xs",
+        style: {
+          color: C.dim
+        }
+      }, "apr\xE8s 7 h+ (", cs.nBien, " s\xE9ances)")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+        className: "text-lg",
+        style: {
+          ...DISPLAY,
+          ...NUMS,
+          color: C.text
+        }
+      }, cs.mal.toLocaleString("fr-FR"), " kg"), /*#__PURE__*/React.createElement("div", {
+        className: "text-xs",
+        style: {
+          color: C.dim
+        }
+      }, "apr\xE8s moins de 7 h (", cs.nMal, ")"))), /*#__PURE__*/React.createElement("div", {
+        className: "text-xs",
+        style: {
+          color: ecart > 0 ? C.green : C.dim
+        }
+      }, ecart > 0 ? `Tu soulèves ${pct} % de plus quand tu as bien dormi. Le sommeil fait partie de l'entraînement.` : "Pas d'écart net pour l'instant — continue à noter ton sommeil."));
+    })());
   })(), progMode === "retro" && (() => {
     const an = new Date().getFullYear();
     const sAn = data.seances.filter(s => s.date.startsWith(String(an)));
@@ -8610,7 +9086,66 @@ function App() {
       icon: "👑",
       done: tonnageTotal >= 100000
     }];
-    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+    const xp = xpTotal(data);
+    const ng = niveauGlobal(xp);
+    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Card, {
+      style: {
+        background: "linear-gradient(165deg, rgba(245,197,24,.16), #fffdf7 60%)",
+        border: "1px solid rgba(245,197,24,.28)"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-4"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "rounded-2xl flex flex-col items-center justify-center shrink-0",
+      style: {
+        width: 66,
+        height: 66,
+        background: "rgba(255,255,255,.6)",
+        border: `1px solid ${C.hair}`
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-xs",
+      style: {
+        color: C.dim,
+        fontSize: 9
+      }
+    }, "NIV."), /*#__PURE__*/React.createElement("div", {
+      className: "leading-none",
+      style: {
+        ...DISPLAY,
+        ...NUMS,
+        fontSize: 30,
+        color: C.yellowDim
+      }
+    }, ng.niveau)), /*#__PURE__*/React.createElement("div", {
+      className: "flex-1 min-w-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-base font-bold"
+    }, ng.titre), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs mb-1.5",
+      style: {
+        ...NUMS,
+        color: C.dim
+      }
+    }, ng.xp.toLocaleString("fr-FR"), " XP \xB7 ", (ng.xpSuivant - ng.xp).toLocaleString("fr-FR"), " avant le niveau ", ng.niveau + 1), /*#__PURE__*/React.createElement("div", {
+      className: "rounded-full overflow-hidden",
+      style: {
+        height: 8,
+        background: "rgba(255,255,255,.65)"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: `${ng.pct}%`,
+        height: "100%",
+        background: C.yellow,
+        transition: "width .4s ease"
+      }
+    })))), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs mt-3",
+      style: {
+        color: C.dim
+      }
+    }, "XP gagn\xE9e : 100 par s\xE9ance \xB7 5 par s\xE9rie \xB7 250 par record \xB7 1 par 100 kg soulev\xE9s.")), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
       className: "text-sm font-bold mb-3"
     }, "Badges de paliers"), /*#__PURE__*/React.createElement("div", {
       className: "grid grid-cols-3 gap-2.5"
@@ -9426,7 +9961,10 @@ function App() {
     style: {
       color: C.dim
     }
-  }, "Explorer d'abord"))), comparateurOuvert && (data.photosCorps || []).length > 1 && (() => {
+  }, "Explorer d'abord"))), hiitOuvert && /*#__PURE__*/React.createElement(HiitTimer, {
+    onClose: () => setHiitOuvert(false),
+    onBip: beep
+  }), comparateurOuvert && (data.photosCorps || []).length > 1 && (() => {
     const tries = [...(data.photosCorps || [])].sort((a, b) => a.date < b.date ? -1 : 1);
     const avant = tries[0],
       apres = tries[tries.length - 1];
