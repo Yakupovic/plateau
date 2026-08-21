@@ -2947,6 +2947,46 @@ function App() {
   }, [data.themeSombre]);
   const basculerTheme = () => saveData({ ...data, themeSombre: data.themeSombre === true ? false : true });
 
+  // ————— Accueil personnalisable —————
+  // Les sections restent à leur place dans le JSX ; on joue sur `order` (flex) et l'affichage.
+  const SECTIONS_ACCUEIL = [
+    { id: "objectif", nom: "Objectif de la semaine" },
+    { id: "checklist", nom: "Avant de partir" },
+    { id: "conseil", nom: "Ta séance du jour" },
+    { id: "corps", nom: "Silhouette musculaire" },
+    { id: "programmes", nom: "Mes programmes" },
+    { id: "cycle", nom: "Cycle d'entraînement" },
+    { id: "prochaine", nom: "Prochaine séance" },
+    { id: "stats", nom: "Stats rapides" },
+    { id: "levelup", nom: "Level Up · la salle" },
+    { id: "histo", nom: "Dernières séances" },
+  ];
+  const ordreAccueil = (() => {
+    const perso = data.accueilOrdre || [];
+    const connus = SECTIONS_ACCUEIL.map((s) => s.id);
+    // on garde l'ordre perso, puis on ajoute les sections apparues depuis
+    return [...perso.filter((id) => connus.includes(id)), ...connus.filter((id) => !perso.includes(id))];
+  })();
+  const masquees = data.accueilMasque || [];
+  const Sec = ({ id, children }) => {
+    if (masquees.includes(id)) return null;
+    // sans ça, une section au contenu conditionnel vide laisserait un espacement fantôme
+    if (!React.Children.toArray(children).length) return null;
+    const i = ordreAccueil.indexOf(id);
+    return <div style={{ order: i < 0 ? 90 : i + 1 }}>{children}</div>;
+  };
+  const basculerSection = (id) => {
+    const next = masquees.includes(id) ? masquees.filter((x) => x !== id) : [...masquees, id];
+    saveData({ ...data, accueilMasque: next });
+  };
+  const deplacerSection = (id, delta) => {
+    const arr = [...ordreAccueil];
+    const i = arr.indexOf(id), j = i + delta;
+    if (i < 0 || j < 0 || j >= arr.length) return;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    saveData({ ...data, accueilOrdre: arr });
+  };
+
   const CHECKLIST_DEFAUT = ["Gourde remplie", "Serviette", "Ceinture / gants", "Écouteurs chargés", "Tenue de rechange"];
   const checklistItems = data.checklist && data.checklist.length ? data.checklist : CHECKLIST_DEFAUT;
   const checklistCoches = (data.checklistCoche || {})[todayISO()] || [];
@@ -3521,7 +3561,7 @@ function App() {
 
         {/* ————— ACCUEIL ————— */}
         {tab === "accueil" && (
-          <div className="space-y-3 pl-anim">
+          <div className="pl-anim" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             {!current ? (
               <button
                 onClick={() => setShowStart(true)}
@@ -3587,6 +3627,7 @@ function App() {
               </div>
             )}
 
+            <Sec id="objectif">
             {/* Objectif de la semaine */}
             <Card onClick={definirObjSeances} className="pl-tap flex items-center gap-4">
               <Ring value={seancesSemaine} max={objSeances} color={seancesSemaine >= objSeances ? C.green : C.yellow}>
@@ -3601,6 +3642,7 @@ function App() {
                 <div className="text-xs mt-1" style={{ color: C.dim2 }}>Tape pour changer l'objectif</div>
               </div>
             </Card>
+            </Sec>
 
             {seancesSemaine > 0 && (
               <button onClick={() => setRecapOuvert(true)} className="w-full text-left text-xs px-1" style={{ color: C.yellowDim }}>
@@ -3608,6 +3650,7 @@ function App() {
               </button>
             )}
 
+            <Sec id="checklist">
             {!current && (
               <Card>
                 <button
@@ -3658,7 +3701,9 @@ function App() {
                 )}
               </Card>
             )}
+            </Sec>
 
+            <Sec id="conseil">
             {/* Le cerveau : ta séance du jour */}
             {!current && (() => {
               const reco = seanceConseillee(data);
@@ -3691,7 +3736,9 @@ function App() {
                 </Card>
               );
             })()}
+            </Sec>
 
+            <Sec id="corps">
             {/* Silhouette musculaire */}
             <div>
               <SectionLabel>Ton corps · 7 derniers jours</SectionLabel>
@@ -3704,7 +3751,9 @@ function App() {
                 <div className="text-xs mt-2 text-center" style={{ color: C.dim }}>Tape un muscle pour le détail · gris = à travailler</div>
               </Card>
             </div>
+            </Sec>
 
+            <Sec id="programmes">
             {/* Mes programmes */}
             {(data.programmesPerso || []).length > 0 && (
               <div>
@@ -3726,6 +3775,7 @@ function App() {
                 </Card>
               </div>
             )}
+            </Sec>
 
             {showStart && !current && (
               <Card>
@@ -3760,6 +3810,7 @@ function App() {
               </Card>
             )}
 
+            <Sec id="cycle">
             {/* Cycle d'entraînement */}
             {(() => {
               const cy = cycleDe(data);
@@ -3798,7 +3849,9 @@ function App() {
                 </Card>
               );
             })()}
+            </Sec>
 
+            <Sec id="prochaine">
             {/* Prochaine séance */}
             <Card>
               {data.prochaine ? (
@@ -3873,7 +3926,9 @@ function App() {
                 </div>
               )}
             </Card>
+            </Sec>
 
+            <Sec id="stats">
             {/* Stats rapides */}
             <div className="grid grid-cols-4 gap-2">
               <Card className="text-center" style={{ padding: "0.75rem 0.25rem" }}>
@@ -3899,6 +3954,7 @@ function App() {
                 <div className="text-xs mt-1" style={{ color: C.dim }}>kg / {OBJECTIF_POIDS}</div>
               </Card>
             </div>
+            </Sec>
 
             {(!dernierPoids || joursDepuis(dernierPoids.date) >= 7) && (
               <button onClick={() => setTab("recup")} className="w-full text-left text-xs px-1" style={{ color: C.dim }}>
@@ -3912,6 +3968,7 @@ function App() {
               </button>
             )}
 
+            <Sec id="levelup">
             {/* Level Up la salle */}
             <Card>
               <div className="flex items-center justify-between mb-2">
@@ -3950,7 +4007,9 @@ function App() {
                 {" · +1 auto à chaque séance terminée"}
               </div>
             </Card>
+            </Sec>
 
+            <Sec id="histo">
             {/* Dernières séances */}
             <Card>
               <div className="font-bold text-sm mb-2">Dernières séances</div>
@@ -3971,8 +4030,10 @@ function App() {
                 </button>
               ))}
             </Card>
+            </Sec>
 
             {/* Mes données — replié par défaut, pas besoin d'y penser au quotidien */}
+            <div style={{ order: 99 }}>
             <button
               onClick={() => setReglagesOuvert(!reglagesOuvert)}
               className="pl-tap w-full flex items-center justify-between px-1 py-2 text-xs font-semibold"
@@ -4101,6 +4162,40 @@ function App() {
               >
                 <Copy size={14} /> Exporter en CSV (Excel/Sheets)
               </button>
+              <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
+                <div className="text-sm font-bold mb-1">Mon accueil</div>
+                <div className="text-xs mb-2" style={{ color: C.dim }}>
+                  Masque ce que tu ne regardes jamais, remonte ce qui compte.
+                </div>
+                {ordreAccueil.map((id, i) => {
+                  const s = SECTIONS_ACCUEIL.find((x) => x.id === id);
+                  if (!s) return null;
+                  const visible = !masquees.includes(id);
+                  return (
+                    <div key={id} className="flex items-center gap-2 py-1.5" style={{ borderTop: `1px solid ${C.line}` }}>
+                      <button
+                        onClick={() => basculerSection(id)}
+                        className="rounded-md flex items-center justify-center shrink-0 text-xs"
+                        style={{ width: 22, height: 22, background: visible ? C.green : C.card2, border: `1px solid ${visible ? C.green : C.line}`, color: "#fff" }}
+                      >
+                        {visible ? "✓" : ""}
+                      </button>
+                      <span className="text-sm flex-1 min-w-0 truncate" style={{ color: visible ? C.text : C.dim }}>{s.nom}</span>
+                      <button onClick={() => deplacerSection(id, -1)} disabled={i === 0} className="px-2 py-1" style={{ color: i === 0 ? C.off : C.dim }}>▴</button>
+                      <button onClick={() => deplacerSection(id, 1)} disabled={i === ordreAccueil.length - 1} className="px-2 py-1" style={{ color: i === ordreAccueil.length - 1 ? C.off : C.dim }}>▾</button>
+                    </div>
+                  );
+                })}
+                {(masquees.length > 0 || (data.accueilOrdre || []).length > 0) && (
+                  <button
+                    onClick={() => saveData({ ...data, accueilMasque: [], accueilOrdre: null })}
+                    className="text-xs font-semibold mt-2"
+                    style={{ color: C.yellowDim }}
+                  >
+                    ↺ Remettre l'accueil par défaut
+                  </button>
+                )}
+              </div>
               <button
                 onClick={exporterChiffre}
                 className="w-full rounded-xl py-3 mt-2 font-semibold text-sm flex items-center justify-center gap-2"
@@ -4143,6 +4238,7 @@ function App() {
               </div>
             </Card>
             )}
+            </div>
           </div>
         )}
 

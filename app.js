@@ -4674,6 +4674,79 @@ function App() {
     ...data,
     themeSombre: data.themeSombre === true ? false : true
   });
+
+  // ————— Accueil personnalisable —————
+  // Les sections restent à leur place dans le JSX ; on joue sur `order` (flex) et l'affichage.
+  const SECTIONS_ACCUEIL = [{
+    id: "objectif",
+    nom: "Objectif de la semaine"
+  }, {
+    id: "checklist",
+    nom: "Avant de partir"
+  }, {
+    id: "conseil",
+    nom: "Ta séance du jour"
+  }, {
+    id: "corps",
+    nom: "Silhouette musculaire"
+  }, {
+    id: "programmes",
+    nom: "Mes programmes"
+  }, {
+    id: "cycle",
+    nom: "Cycle d'entraînement"
+  }, {
+    id: "prochaine",
+    nom: "Prochaine séance"
+  }, {
+    id: "stats",
+    nom: "Stats rapides"
+  }, {
+    id: "levelup",
+    nom: "Level Up · la salle"
+  }, {
+    id: "histo",
+    nom: "Dernières séances"
+  }];
+  const ordreAccueil = (() => {
+    const perso = data.accueilOrdre || [];
+    const connus = SECTIONS_ACCUEIL.map(s => s.id);
+    // on garde l'ordre perso, puis on ajoute les sections apparues depuis
+    return [...perso.filter(id => connus.includes(id)), ...connus.filter(id => !perso.includes(id))];
+  })();
+  const masquees = data.accueilMasque || [];
+  const Sec = ({
+    id,
+    children
+  }) => {
+    if (masquees.includes(id)) return null;
+    // sans ça, une section au contenu conditionnel vide laisserait un espacement fantôme
+    if (!React.Children.toArray(children).length) return null;
+    const i = ordreAccueil.indexOf(id);
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        order: i < 0 ? 90 : i + 1
+      }
+    }, children);
+  };
+  const basculerSection = id => {
+    const next = masquees.includes(id) ? masquees.filter(x => x !== id) : [...masquees, id];
+    saveData({
+      ...data,
+      accueilMasque: next
+    });
+  };
+  const deplacerSection = (id, delta) => {
+    const arr = [...ordreAccueil];
+    const i = arr.indexOf(id),
+      j = i + delta;
+    if (i < 0 || j < 0 || j >= arr.length) return;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    saveData({
+      ...data,
+      accueilOrdre: arr
+    });
+  };
   const CHECKLIST_DEFAUT = ["Gourde remplie", "Serviette", "Ceinture / gants", "Écouteurs chargés", "Tenue de rechange"];
   const checklistItems = data.checklist && data.checklist.length ? data.checklist : CHECKLIST_DEFAUT;
   const checklistCoches = (data.checklistCoche || {})[todayISO()] || [];
@@ -5407,7 +5480,12 @@ function App() {
       color: C.red
     }
   }, "Stockage inaccessible (navigation priv\xE9e ?). Active \xAB Copie auto \xBB dans Mes donn\xE9es pour garder une sauvegarde dans ton presse-papier."), tab === "accueil" && /*#__PURE__*/React.createElement("div", {
-    className: "space-y-3 pl-anim"
+    className: "pl-anim",
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: "0.75rem"
+    }
   }, !current ? /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowStart(true),
     className: "pl-hero pl-tap w-full rounded-3xl px-5 py-5",
@@ -5490,7 +5568,9 @@ function App() {
       border: `1px solid ${C.red}`,
       color: C.red
     }
-  }, "\u26A0\uFE0F G\xEAne r\xE9p\xE9t\xE9e signal\xE9e sur ", alerteDouleur, " ces 2 derni\xE8res semaines \u2014 pense \xE0 lever le pied ou consulter si \xE7a persiste."), /*#__PURE__*/React.createElement(Card, {
+  }, "\u26A0\uFE0F G\xEAne r\xE9p\xE9t\xE9e signal\xE9e sur ", alerteDouleur, " ces 2 derni\xE8res semaines \u2014 pense \xE0 lever le pied ou consulter si \xE7a persiste."), /*#__PURE__*/React.createElement(Sec, {
+    id: "objectif"
+  }, /*#__PURE__*/React.createElement(Card, {
     onClick: definirObjSeances,
     className: "pl-tap flex items-center gap-4"
   }, /*#__PURE__*/React.createElement(Ring, {
@@ -5523,13 +5603,15 @@ function App() {
     style: {
       color: C.dim2
     }
-  }, "Tape pour changer l'objectif"))), seancesSemaine > 0 && /*#__PURE__*/React.createElement("button", {
+  }, "Tape pour changer l'objectif")))), seancesSemaine > 0 && /*#__PURE__*/React.createElement("button", {
     onClick: () => setRecapOuvert(true),
     className: "w-full text-left text-xs px-1",
     style: {
       color: C.yellowDim
     }
-  }, "\uD83D\uDCD6 Voir le r\xE9cap de ma semaine \u2192"), !current && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("button", {
+  }, "\uD83D\uDCD6 Voir le r\xE9cap de ma semaine \u2192"), /*#__PURE__*/React.createElement(Sec, {
+    id: "checklist"
+  }, !current && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("button", {
     onClick: () => setChecklistOuverte(!checklistOuverte),
     className: "w-full flex items-center justify-between text-left"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
@@ -5582,7 +5664,9 @@ function App() {
     style: {
       color: C.yellowDim
     }
-  }, "\u270F\uFE0F Modifier ma liste"))), !current && (() => {
+  }, "\u270F\uFE0F Modifier ma liste")))), /*#__PURE__*/React.createElement(Sec, {
+    id: "conseil"
+  }, !current && (() => {
     const reco = seanceConseillee(data);
     const repos = reco.type === "repos";
     return /*#__PURE__*/React.createElement(Card, {
@@ -5632,7 +5716,9 @@ function App() {
         color: C.yellowDim
       }
     }, "Lancer \xAB ", reco.titre, " \xBB"));
-  })(), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SectionLabel, null, "Ton corps \xB7 7 derniers jours"), /*#__PURE__*/React.createElement(Card, {
+  })()), /*#__PURE__*/React.createElement(Sec, {
+    id: "corps"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SectionLabel, null, "Ton corps \xB7 7 derniers jours"), /*#__PURE__*/React.createElement(Card, {
     className: "mt-2"
   }, /*#__PURE__*/React.createElement(SilhouetteMuscles, {
     volumes: volumes,
@@ -5643,7 +5729,9 @@ function App() {
     style: {
       color: C.dim
     }
-  }, "Tape un muscle pour le d\xE9tail \xB7 gris = \xE0 travailler"))), (data.programmesPerso || []).length > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SectionLabel, null, "Mes programmes"), /*#__PURE__*/React.createElement(Card, {
+  }, "Tape un muscle pour le d\xE9tail \xB7 gris = \xE0 travailler")))), /*#__PURE__*/React.createElement(Sec, {
+    id: "programmes"
+  }, (data.programmesPerso || []).length > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SectionLabel, null, "Mes programmes"), /*#__PURE__*/React.createElement(Card, {
     className: "mt-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col gap-2.5"
@@ -5683,7 +5771,7 @@ function App() {
     }
   }, /*#__PURE__*/React.createElement(X, {
     size: 13
-  }))))))), showStart && !current && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+  })))))))), showStart && !current && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-bold mb-2"
   }, "C'est quoi comme s\xE9ance ?"), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 flex-wrap mb-3"
@@ -5720,7 +5808,9 @@ function App() {
     }
   }, /*#__PURE__*/React.createElement(X, {
     size: 18
-  })))), (() => {
+  })))), /*#__PURE__*/React.createElement(Sec, {
+    id: "cycle"
+  }, (() => {
     const cy = cycleDe(data);
     return /*#__PURE__*/React.createElement(Card, {
       style: cy.deload ? {
@@ -5764,7 +5854,9 @@ function App() {
         color: cy.deload ? C.green : C.dim
       }
     }, cy.deload ? "Semaine allégée : charges à −10 % et 3 séries au lieu de 4. C'est là que le muscle se construit vraiment — ne saute pas cette semaine." : "Montée en charge : tu pousses les charges dès que tu as de la marge. Semaine 4 sera allégée."));
-  })(), /*#__PURE__*/React.createElement(Card, null, data.prochaine ? /*#__PURE__*/React.createElement("div", {
+  })()), /*#__PURE__*/React.createElement(Sec, {
+    id: "prochaine"
+  }, /*#__PURE__*/React.createElement(Card, null, data.prochaine ? /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-3"
   }, /*#__PURE__*/React.createElement(Calendar, {
     size: 18,
@@ -5857,7 +5949,9 @@ function App() {
     style: {
       color: C.dim
     }
-  }, "Pas de notification possible dans l'app \u2014 mets-toi un rappel sur ton iPhone en plus."))), /*#__PURE__*/React.createElement("div", {
+  }, "Pas de notification possible dans l'app \u2014 mets-toi un rappel sur ton iPhone en plus.")))), /*#__PURE__*/React.createElement(Sec, {
+    id: "stats"
+  }, /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-4 gap-2"
   }, /*#__PURE__*/React.createElement(Card, {
     className: "text-center",
@@ -5930,7 +6024,7 @@ function App() {
     style: {
       color: C.dim
     }
-  }, "kg / ", OBJECTIF_POIDS))), (!dernierPoids || joursDepuis(dernierPoids.date) >= 7) && /*#__PURE__*/React.createElement("button", {
+  }, "kg / ", OBJECTIF_POIDS)))), (!dernierPoids || joursDepuis(dernierPoids.date) >= 7) && /*#__PURE__*/React.createElement("button", {
     onClick: () => setTab("recup"),
     className: "w-full text-left text-xs px-1",
     style: {
@@ -5942,7 +6036,9 @@ function App() {
     style: {
       color: C.dim
     }
-  }, "\uD83D\uDCBE ", data.dernierExport ? `Dernière sauvegarde il y a ${joursDepuis(data.dernierExport)} j` : "Aucune sauvegarde faite", " \u2014 tes s\xE9ances ne vivent que sur ce t\xE9l\xE9phone \u2192"), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+  }, "\uD83D\uDCBE ", data.dernierExport ? `Dernière sauvegarde il y a ${joursDepuis(data.dernierExport)} j` : "Aucune sauvegarde faite", " \u2014 tes s\xE9ances ne vivent que sur ce t\xE9l\xE9phone \u2192"), /*#__PURE__*/React.createElement(Sec, {
+    id: "levelup"
+  }, /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "font-bold text-sm"
@@ -6003,7 +6099,9 @@ function App() {
     style: {
       color: C.dim
     }
-  }, passages >= palier.cible ? `${palier.nom} atteint !` : `Encore ${palier.cible - passages} passage${palier.cible - passages > 1 ? "s" : ""} pour ${palier.nom}`, " · +1 auto à chaque séance terminée")), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+  }, passages >= palier.cible ? `${palier.nom} atteint !` : `Encore ${palier.cible - passages} passage${palier.cible - passages > 1 ? "s" : ""} pour ${palier.nom}`, " · +1 auto à chaque séance terminée"))), /*#__PURE__*/React.createElement(Sec, {
+    id: "histo"
+  }, /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
     className: "font-bold text-sm mb-2"
   }, "Derni\xE8res s\xE9ances"), [...data.seances].reverse().slice(0, 3).map(s => /*#__PURE__*/React.createElement("button", {
     key: s.id,
@@ -6028,7 +6126,11 @@ function App() {
       color: C.dim,
       transform: "rotate(-90deg)"
     }
-  })))), /*#__PURE__*/React.createElement("button", {
+  }))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      order: 99
+    }
+  }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setReglagesOuvert(!reglagesOuvert),
     className: "pl-tap w-full flex items-center justify-between px-1 py-2 text-xs font-semibold",
     style: {
@@ -6179,7 +6281,69 @@ function App() {
     }
   }, /*#__PURE__*/React.createElement(Copy, {
     size: 14
-  }), " Exporter en CSV (Excel/Sheets)"), /*#__PURE__*/React.createElement("button", {
+  }), " Exporter en CSV (Excel/Sheets)"), /*#__PURE__*/React.createElement("div", {
+    className: "mt-4 pt-3",
+    style: {
+      borderTop: `1px solid ${C.line}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-bold mb-1"
+  }, "Mon accueil"), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs mb-2",
+    style: {
+      color: C.dim
+    }
+  }, "Masque ce que tu ne regardes jamais, remonte ce qui compte."), ordreAccueil.map((id, i) => {
+    const s = SECTIONS_ACCUEIL.find(x => x.id === id);
+    if (!s) return null;
+    const visible = !masquees.includes(id);
+    return /*#__PURE__*/React.createElement("div", {
+      key: id,
+      className: "flex items-center gap-2 py-1.5",
+      style: {
+        borderTop: `1px solid ${C.line}`
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => basculerSection(id),
+      className: "rounded-md flex items-center justify-center shrink-0 text-xs",
+      style: {
+        width: 22,
+        height: 22,
+        background: visible ? C.green : C.card2,
+        border: `1px solid ${visible ? C.green : C.line}`,
+        color: "#fff"
+      }
+    }, visible ? "✓" : ""), /*#__PURE__*/React.createElement("span", {
+      className: "text-sm flex-1 min-w-0 truncate",
+      style: {
+        color: visible ? C.text : C.dim
+      }
+    }, s.nom), /*#__PURE__*/React.createElement("button", {
+      onClick: () => deplacerSection(id, -1),
+      disabled: i === 0,
+      className: "px-2 py-1",
+      style: {
+        color: i === 0 ? C.off : C.dim
+      }
+    }, "\u25B4"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => deplacerSection(id, 1),
+      disabled: i === ordreAccueil.length - 1,
+      className: "px-2 py-1",
+      style: {
+        color: i === ordreAccueil.length - 1 ? C.off : C.dim
+      }
+    }, "\u25BE"));
+  }), (masquees.length > 0 || (data.accueilOrdre || []).length > 0) && /*#__PURE__*/React.createElement("button", {
+    onClick: () => saveData({
+      ...data,
+      accueilMasque: [],
+      accueilOrdre: null
+    }),
+    className: "text-xs font-semibold mt-2",
+    style: {
+      color: C.yellowDim
+    }
+  }, "\u21BA Remettre l'accueil par d\xE9faut")), /*#__PURE__*/React.createElement("button", {
     onClick: exporterChiffre,
     className: "w-full rounded-xl py-3 mt-2 font-semibold text-sm flex items-center justify-center gap-2",
     style: {
@@ -6224,7 +6388,7 @@ function App() {
     style: {
       color: C.dim
     }
-  }, "Sauvegarde de secours (les photos ne sont pas incluses)."))), tab === "seance" && /*#__PURE__*/React.createElement("div", {
+  }, "Sauvegarde de secours (les photos ne sont pas incluses).")))), tab === "seance" && /*#__PURE__*/React.createElement("div", {
     className: "space-y-3 pl-anim"
   }, !current ? /*#__PURE__*/React.createElement(Card, {
     className: "text-center py-8"
