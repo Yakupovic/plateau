@@ -1,5 +1,5 @@
-const CACHE = "plateau-v1787279865487";
-const CORE = ["./", "./index.html", "./app.js?v=1787279865487", "./app.css?v=1787279865487", "./react.js?v=1787279865487", "./react-dom.js?v=1787279865487",
+const CACHE = "plateau-v1787280167088";
+const CORE = ["./", "./index.html", "./app.js?v=1787280167088", "./app.css?v=1787280167088", "./react.js?v=1787280167088", "./react-dom.js?v=1787280167088",
               "./manifest.json", "./icon-192.png", "./icon-512.png", "./icon-180.png"];
 
 self.addEventListener("install", (e) => {

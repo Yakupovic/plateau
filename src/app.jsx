@@ -670,6 +670,32 @@ const xpTotal = (d) => {
   const tonnage = d.seances.reduce((a, s) => a + tonnageSeance(s), 0);
   return Math.round(seances * 100 + series * 5 + records * 250 + tonnage / 100);
 };
+// Niveau par groupe musculaire : basé sur le total de séries faites depuis le début.
+const RANGS_MUSCLE = [
+  { min: 0, nom: "Vierge", icone: "🌱" },
+  { min: 25, nom: "Éveillé", icone: "🔸" },
+  { min: 75, nom: "Construit", icone: "🔶" },
+  { min: 200, nom: "Solide", icone: "🟠" },
+  { min: 450, nom: "Blindé", icone: "🔥" },
+  { min: 900, nom: "Sculpté", icone: "🏆" },
+];
+const rangMuscle = (series) => {
+  let r = RANGS_MUSCLE[0], suivant = RANGS_MUSCLE[1];
+  for (let i = 0; i < RANGS_MUSCLE.length; i++) {
+    if (series >= RANGS_MUSCLE[i].min) { r = RANGS_MUSCLE[i]; suivant = RANGS_MUSCLE[i + 1] || null; }
+  }
+  const pct = suivant ? Math.round(((series - r.min) / (suivant.min - r.min)) * 100) : 100;
+  return { ...r, series, suivant, pct: Math.max(0, Math.min(100, pct)) };
+};
+const seriesTotalesParMuscle = (d) => {
+  const t = {};
+  d.seances.forEach((s) => s.exos.forEach((e) => {
+    if (e.type === "cardio") return;
+    const m = muscleOf(e.nom);
+    t[m] = (t[m] || 0) + (e.series || 0);
+  }));
+  return t;
+};
 const niveauGlobal = (xp) => {
   // paliers quadratiques : niveau n atteint à 500·n² XP
   const niveau = Math.max(1, Math.floor(Math.sqrt(xp / 500)) + 1);
@@ -6110,6 +6136,33 @@ function App() {
                   des recommandations classiques en hypertrophie — indicatifs, pas une règle absolue.
                 </div>
                 <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
+                  <div className="text-sm font-bold mb-1">Rang par groupe musculaire</div>
+                  <div className="text-xs mb-3" style={{ color: C.dim }}>
+                    Depuis le tout début, toutes séances confondues.
+                  </div>
+                  {(() => {
+                    const tot = seriesTotalesParMuscle(data);
+                    return MUSCLE_ORDRE.filter((m) => m !== "Autre").map((m) => {
+                      const r = rangMuscle(tot[m] || 0);
+                      return (
+                        <div key={m} className="flex items-center gap-3 py-1.5" style={{ borderTop: `1px solid ${C.line}` }}>
+                          <span style={{ fontSize: 18 }}>{r.icone}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold">{m} · <span style={{ color: C.yellowDim }}>{r.nom}</span></div>
+                            <div className="rounded-full overflow-hidden mt-1" style={{ height: 5, background: C.card2 }}>
+                              <div style={{ width: `${r.pct}%`, height: "100%", background: C.yellow }} />
+                            </div>
+                          </div>
+                          <div className="text-xs shrink-0 text-right" style={{ ...NUMS, color: C.dim }}>
+                            {r.series} séries
+                            {r.suivant && <div style={{ fontSize: 10 }}>{r.suivant.min - r.series} → {r.suivant.nom}</div>}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+                <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
                   <div className="text-sm font-bold mb-1">Équilibre sur 14 jours</div>
                   <div className="text-xs mb-3" style={{ color: C.dim }}>
                     Un coach surveille les paires opposées, pas seulement le volume total.
@@ -6388,6 +6441,50 @@ function App() {
                       </div>
                     </Card>
                   )}
+                  {(() => {
+                    // Frise : un point par mois depuis la toute première séance
+                    const toutes = [...data.seances].sort((a, b) => (a.date < b.date ? -1 : 1));
+                    if (toutes.length < 3) return null;
+                    const parMois = {};
+                    toutes.forEach((s) => {
+                      const k = s.date.slice(0, 7);
+                      parMois[k] = parMois[k] || { n: 0, prs: 0, tonnage: 0 };
+                      parMois[k].n++;
+                      parMois[k].prs += s.exos.filter((e) => e.pr).length;
+                      parMois[k].tonnage += tonnageSeance(s);
+                    });
+                    const cles = Object.keys(parMois).sort();
+                    const maxN = Math.max(...cles.map((k) => parMois[k].n));
+                    const debut = toutes[0].date;
+                    return (
+                      <Card>
+                        <div className="text-sm font-bold mb-1">Ta carrière, mois par mois</div>
+                        <div className="text-xs mb-3" style={{ color: C.dim }}>
+                          Depuis le {fmtDate(debut)} · {cles.length} mois d'entraînement
+                        </div>
+                        <div className="flex items-end gap-1 overflow-x-auto pb-1" style={{ scrollbarWidth: "none", minHeight: 90 }}>
+                          {cles.map((k) => {
+                            const m = parMois[k];
+                            const h = Math.max(6, Math.round((m.n / maxN) * 64));
+                            return (
+                              <div key={k} className="flex flex-col items-center shrink-0" style={{ width: 26 }}>
+                                {m.prs > 0 && <div style={{ fontSize: 9, lineHeight: 1 }}>⭐</div>}
+                                <div
+                                  title={`${k} · ${m.n} séances`}
+                                  className="rounded-t"
+                                  style={{ width: 14, height: h, background: m.prs > 0 ? C.yellow : C.yellowHi, opacity: m.prs > 0 ? 1 : 0.65 }}
+                                />
+                                <div style={{ fontSize: 8, color: C.dim, marginTop: 3 }}>{k.slice(5)}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="text-xs mt-2" style={{ color: C.dim }}>
+                          Hauteur = nombre de séances · ⭐ = au moins un record ce mois-là.
+                        </div>
+                      </Card>
+                    );
+                  })()}
                   <button onClick={partager} className="pl-tap w-full rounded-2xl py-4 font-black flex items-center justify-center gap-2" style={{ background: shareId === "retro" ? C.card2 : C.yellow, color: shareId === "retro" ? C.green : "#111", border: shareId === "retro" ? `1px solid ${C.green}` : "none" }}>
                     <Share2 size={16} /> {shareId === "retro" ? "Copié !" : "Partager ma rétro"}
                   </button>

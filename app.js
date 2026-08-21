@@ -862,6 +862,58 @@ const xpTotal = d => {
   const tonnage = d.seances.reduce((a, s) => a + tonnageSeance(s), 0);
   return Math.round(seances * 100 + series * 5 + records * 250 + tonnage / 100);
 };
+// Niveau par groupe musculaire : basé sur le total de séries faites depuis le début.
+const RANGS_MUSCLE = [{
+  min: 0,
+  nom: "Vierge",
+  icone: "🌱"
+}, {
+  min: 25,
+  nom: "Éveillé",
+  icone: "🔸"
+}, {
+  min: 75,
+  nom: "Construit",
+  icone: "🔶"
+}, {
+  min: 200,
+  nom: "Solide",
+  icone: "🟠"
+}, {
+  min: 450,
+  nom: "Blindé",
+  icone: "🔥"
+}, {
+  min: 900,
+  nom: "Sculpté",
+  icone: "🏆"
+}];
+const rangMuscle = series => {
+  let r = RANGS_MUSCLE[0],
+    suivant = RANGS_MUSCLE[1];
+  for (let i = 0; i < RANGS_MUSCLE.length; i++) {
+    if (series >= RANGS_MUSCLE[i].min) {
+      r = RANGS_MUSCLE[i];
+      suivant = RANGS_MUSCLE[i + 1] || null;
+    }
+  }
+  const pct = suivant ? Math.round((series - r.min) / (suivant.min - r.min) * 100) : 100;
+  return {
+    ...r,
+    series,
+    suivant,
+    pct: Math.max(0, Math.min(100, pct))
+  };
+};
+const seriesTotalesParMuscle = d => {
+  const t = {};
+  d.seances.forEach(s => s.exos.forEach(e => {
+    if (e.type === "cardio") return;
+    const m = muscleOf(e.nom);
+    t[m] = (t[m] || 0) + (e.series || 0);
+  }));
+  return t;
+};
 const niveauGlobal = xp => {
   // paliers quadratiques : niveau n atteint à 500·n² XP
   const niveau = Math.max(1, Math.floor(Math.sqrt(xp / 500)) + 1);
@@ -8810,6 +8862,64 @@ function App() {
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-bold mb-1"
+  }, "Rang par groupe musculaire"), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs mb-3",
+    style: {
+      color: C.dim
+    }
+  }, "Depuis le tout d\xE9but, toutes s\xE9ances confondues."), (() => {
+    const tot = seriesTotalesParMuscle(data);
+    return MUSCLE_ORDRE.filter(m => m !== "Autre").map(m => {
+      const r = rangMuscle(tot[m] || 0);
+      return /*#__PURE__*/React.createElement("div", {
+        key: m,
+        className: "flex items-center gap-3 py-1.5",
+        style: {
+          borderTop: `1px solid ${C.line}`
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 18
+        }
+      }, r.icone), /*#__PURE__*/React.createElement("div", {
+        className: "flex-1 min-w-0"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "text-sm font-semibold"
+      }, m, " \xB7 ", /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.yellowDim
+        }
+      }, r.nom)), /*#__PURE__*/React.createElement("div", {
+        className: "rounded-full overflow-hidden mt-1",
+        style: {
+          height: 5,
+          background: C.card2
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          width: `${r.pct}%`,
+          height: "100%",
+          background: C.yellow
+        }
+      }))), /*#__PURE__*/React.createElement("div", {
+        className: "text-xs shrink-0 text-right",
+        style: {
+          ...NUMS,
+          color: C.dim
+        }
+      }, r.series, " s\xE9ries", r.suivant && /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 10
+        }
+      }, r.suivant.min - r.series, " \u2192 ", r.suivant.nom)));
+    });
+  })()), /*#__PURE__*/React.createElement("div", {
+    className: "mt-4 pt-3",
+    style: {
+      borderTop: `1px solid ${C.line}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-bold mb-1"
   }, "\xC9quilibre sur 14 jours"), /*#__PURE__*/React.createElement("div", {
     className: "text-xs mb-3",
     style: {
@@ -9238,7 +9348,75 @@ function App() {
         ...NUMS,
         color: C.yellowDim
       }
-    }, tonnageSeance(best).toLocaleString("fr-FR"), " kg en une s\xE9ance")))), /*#__PURE__*/React.createElement("button", {
+    }, tonnageSeance(best).toLocaleString("fr-FR"), " kg en une s\xE9ance")))), (() => {
+      // Frise : un point par mois depuis la toute première séance
+      const toutes = [...data.seances].sort((a, b) => a.date < b.date ? -1 : 1);
+      if (toutes.length < 3) return null;
+      const parMois = {};
+      toutes.forEach(s => {
+        const k = s.date.slice(0, 7);
+        parMois[k] = parMois[k] || {
+          n: 0,
+          prs: 0,
+          tonnage: 0
+        };
+        parMois[k].n++;
+        parMois[k].prs += s.exos.filter(e => e.pr).length;
+        parMois[k].tonnage += tonnageSeance(s);
+      });
+      const cles = Object.keys(parMois).sort();
+      const maxN = Math.max(...cles.map(k => parMois[k].n));
+      const debut = toutes[0].date;
+      return /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+        className: "text-sm font-bold mb-1"
+      }, "Ta carri\xE8re, mois par mois"), /*#__PURE__*/React.createElement("div", {
+        className: "text-xs mb-3",
+        style: {
+          color: C.dim
+        }
+      }, "Depuis le ", fmtDate(debut), " \xB7 ", cles.length, " mois d'entra\xEEnement"), /*#__PURE__*/React.createElement("div", {
+        className: "flex items-end gap-1 overflow-x-auto pb-1",
+        style: {
+          scrollbarWidth: "none",
+          minHeight: 90
+        }
+      }, cles.map(k => {
+        const m = parMois[k];
+        const h = Math.max(6, Math.round(m.n / maxN * 64));
+        return /*#__PURE__*/React.createElement("div", {
+          key: k,
+          className: "flex flex-col items-center shrink-0",
+          style: {
+            width: 26
+          }
+        }, m.prs > 0 && /*#__PURE__*/React.createElement("div", {
+          style: {
+            fontSize: 9,
+            lineHeight: 1
+          }
+        }, "\u2B50"), /*#__PURE__*/React.createElement("div", {
+          title: `${k} · ${m.n} séances`,
+          className: "rounded-t",
+          style: {
+            width: 14,
+            height: h,
+            background: m.prs > 0 ? C.yellow : C.yellowHi,
+            opacity: m.prs > 0 ? 1 : 0.65
+          }
+        }), /*#__PURE__*/React.createElement("div", {
+          style: {
+            fontSize: 8,
+            color: C.dim,
+            marginTop: 3
+          }
+        }, k.slice(5)));
+      })), /*#__PURE__*/React.createElement("div", {
+        className: "text-xs mt-2",
+        style: {
+          color: C.dim
+        }
+      }, "Hauteur = nombre de s\xE9ances \xB7 \u2B50 = au moins un record ce mois-l\xE0."));
+    })(), /*#__PURE__*/React.createElement("button", {
       onClick: partager,
       className: "pl-tap w-full rounded-2xl py-4 font-black flex items-center justify-center gap-2",
       style: {
