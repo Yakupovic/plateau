@@ -696,6 +696,48 @@ const seriesTotalesParMuscle = (d) => {
   }));
   return t;
 };
+// ————— Générateur de programme —————
+// Exercices de base par groupe, du plus polyarticulaire au plus isolé.
+const BASE_PAR_GROUPE = {
+  Jambes: ["Presse à cuisses", "Squat guidé (Smith)", "Leg extension", "Leg curl assis", "Mollets debout"],
+  Pecs: ["Développé couché barre", "Développé incliné haltères", "Pec Deck", "Écarté poulie"],
+  Dos: ["Tirage vertical", "Rowing machine", "Tirage horizontal poulie", "Pull-over poulie"],
+  Épaules: ["Développé militaire machine", "Élévations latérales", "Reverse Fly", "Face pull"],
+  Biceps: ["Curl barre EZ", "Curl marteau", "Curl incliné haltères"],
+  Triceps: ["Extension poulie corde", "Dips machine assistée", "Extension triceps machine"],
+};
+const SPLITS = {
+  2: [["Haut du corps", ["Pecs", "Dos", "Épaules", "Biceps", "Triceps"]], ["Bas du corps", ["Jambes"]]],
+  3: [["Push", ["Pecs", "Épaules", "Triceps"]], ["Pull", ["Dos", "Biceps"]], ["Jambes", ["Jambes"]]],
+  4: [["Pecs-Triceps", ["Pecs", "Triceps"]], ["Dos-Biceps", ["Dos", "Biceps"]], ["Jambes", ["Jambes"]], ["Épaules-Bras", ["Épaules", "Biceps", "Triceps"]]],
+  5: [["Push", ["Pecs", "Épaules", "Triceps"]], ["Pull", ["Dos", "Biceps"]], ["Jambes", ["Jambes"]], ["Pecs-Dos", ["Pecs", "Dos"]], ["Bras-Épaules", ["Épaules", "Biceps", "Triceps"]]],
+};
+// force : lourd et peu de reps ; hypertrophie : le classique ; seche : plus de volume, repos courts
+const OBJECTIFS_PROG = {
+  force: { label: "Force", series: 5, reps: 5, repos: 180, budget: 5 },
+  hypertrophie: { label: "Prise de muscle", series: 4, reps: 10, repos: 90, budget: 6 },
+  seche: { label: "Sèche / définition", series: 3, reps: 15, repos: 60, budget: 7 },
+};
+const genererProgrammes = (objectifCle, jours, exosConnus = []) => {
+  const o = OBJECTIFS_PROG[objectifCle];
+  const split = SPLITS[jours] || SPLITS[3];
+  const dejaFait = (n) => exosConnus.some((x) => x.toLowerCase() === n.toLowerCase());
+  return split.map(([nom, groupes]) => {
+    const exos = [];
+    // budget d'exercices réparti sur les groupes du jour : une séance reste faisable
+    const parGroupe = Math.max(1, Math.round(o.budget / groupes.length));
+    groupes.forEach((g) => {
+      const dispo = BASE_PAR_GROUPE[g] || [];
+      // on met en tête les exos que la personne connaît déjà : moins de découverte, plus de charge
+      const tries = [...dispo].sort((a, b) => (dejaFait(b) ? 1 : 0) - (dejaFait(a) ? 1 : 0));
+      tries.slice(0, parGroupe).forEach((n) =>
+        exos.push({ nom: n, poids: 0, parBras: false, series: o.series, reps: o.reps, reposSec: o.repos })
+      );
+    });
+    return { id: uid(), nom, exos };
+  });
+};
+
 const niveauGlobal = (xp) => {
   // paliers quadratiques : niveau n atteint à 500·n² XP
   const niveau = Math.max(1, Math.floor(Math.sqrt(xp / 500)) + 1);
@@ -1844,6 +1886,9 @@ function App() {
   const [bilanSeance, setBilanSeance] = useState(null);
   const [recapOuvert, setRecapOuvert] = useState(false);
   const [checklistOuverte, setChecklistOuverte] = useState(false);
+  const [genOuvert, setGenOuvert] = useState(false);
+  const [genObjectif, setGenObjectif] = useState("hypertrophie");
+  const [genJours, setGenJours] = useState(3);
   const [hiitOuvert, setHiitOuvert] = useState(false);
   const [douleurZone, setDouleurZone] = useState(null);
   const [douleurNiveau, setDouleurNiveau] = useState(5);
@@ -3225,6 +3270,15 @@ function App() {
     if (!exos.length) { window.alert("Aucun exercice de muscu à enregistrer dans un programme."); return; }
     await saveData({ ...data, programmesPerso: [...(data.programmesPerso || []), { id: uid(), nom: nom.trim(), exos }] });
   };
+  const creerProgrammes = async () => {
+    const nouveaux = genererProgrammes(genObjectif, genJours, allExos);
+    const existants = data.programmesPerso || [];
+    const noms = new Set(existants.map((p) => p.nom.toLowerCase()));
+    // suffixe les doublons plutôt que d'écraser un programme que la personne a déjà réglé
+    const ajoutes = nouveaux.map((p) => (noms.has(p.nom.toLowerCase()) ? { ...p, nom: `${p.nom} (auto)` } : p));
+    await saveData({ ...data, programmesPerso: [...existants, ...ajoutes] });
+    setGenOuvert(false);
+  };
   const supprimerProgrammePerso = async (id) => {
     if (!window.confirm("Supprimer ce programme ?")) return;
     await saveData({ ...data, programmesPerso: (data.programmesPerso || []).filter((p) => p.id !== id) });
@@ -3798,8 +3852,24 @@ function App() {
                       </div>
                     ))}
                   </div>
+                  <button
+                    onClick={() => setGenOuvert(true)}
+                    className="w-full rounded-xl py-2.5 mt-3 font-semibold text-xs"
+                    style={{ background: C.card2, border: `1px solid ${C.line}`, color: C.yellowDim }}
+                  >
+                    ✨ Générer un programme
+                  </button>
                 </Card>
               </div>
+            )}
+            {(data.programmesPerso || []).length === 0 && (
+              <button
+                onClick={() => setGenOuvert(true)}
+                className="w-full text-left text-xs px-1"
+                style={{ color: C.yellowDim }}
+              >
+                ✨ Générer un programme adapté à mon objectif →
+              </button>
             )}
             </Sec>
 
@@ -7211,6 +7281,61 @@ function App() {
       )}
 
       {hiitOuvert && <HiitTimer onClose={() => setHiitOuvert(false)} onBip={beep} />}
+
+      {/* ————— Générateur de programme ————— */}
+      {genOuvert && (() => {
+        const apercu = genererProgrammes(genObjectif, genJours, allExos);
+        const o = OBJECTIFS_PROG[genObjectif];
+        return (
+          <div className="fixed inset-0 z-50 overflow-y-auto" style={{ background: C.bg }}>
+            <div className="max-w-md mx-auto px-4" style={{ paddingTop: "calc(1rem + env(safe-area-inset-top))", paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}>
+              <div className="flex items-start justify-between mb-4">
+                <div className="text-xl font-bold">Générer un programme</div>
+                <button onClick={() => setGenOuvert(false)} className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: C.card2, color: C.text }}>
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="text-xs font-extrabold tracking-widest uppercase mb-2" style={{ color: C.dim }}>Ton objectif</div>
+              <div className="flex gap-2 flex-wrap mb-4">
+                {Object.entries(OBJECTIFS_PROG).map(([k, v]) => (
+                  <Chip key={k} active={genObjectif === k} onClick={() => setGenObjectif(k)}>{v.label}</Chip>
+                ))}
+              </div>
+
+              <div className="text-xs font-extrabold tracking-widest uppercase mb-2" style={{ color: C.dim }}>Séances par semaine</div>
+              <div className="flex gap-2 mb-4">
+                {[2, 3, 4, 5].map((n) => (
+                  <Chip key={n} active={genJours === n} onClick={() => setGenJours(n)}>{n} j</Chip>
+                ))}
+              </div>
+
+              <div className="rounded-xl px-3 py-2 mb-4 text-xs leading-relaxed" style={{ background: C.card2, border: `1px solid ${C.hair}`, color: C.dim }}>
+                {o.series} séries de {o.reps} reps · {fmtRepos(o.repos)} de repos entre les séries.
+              </div>
+
+              <div className="text-xs font-extrabold tracking-widest uppercase mb-2" style={{ color: C.dim }}>Aperçu</div>
+              <div className="space-y-2 mb-5">
+                {apercu.map((p) => (
+                  <Card key={p.id}>
+                    <div className="text-sm font-bold mb-1">{p.nom}</div>
+                    <div className="text-xs leading-relaxed" style={{ color: C.dim }}>
+                      {p.exos.map((e) => e.nom).join(" · ")}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+
+              <button onClick={creerProgrammes} className="pl-tap w-full rounded-2xl py-4 font-black" style={{ background: C.yellow, color: C.onYellow }}>
+                Ajouter ces {apercu.length} programmes
+              </button>
+              <div className="text-xs mt-3 text-center" style={{ color: C.dim }}>
+                Les charges partent de zéro : elles se règlent à ta première séance, puis PLATEAU te proposera la suite.
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ————— Comparateur photo avant/après ————— */}
       {comparateurOuvert && (data.photosCorps || []).length > 1 && (() => {

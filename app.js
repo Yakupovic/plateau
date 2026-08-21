@@ -914,6 +914,74 @@ const seriesTotalesParMuscle = d => {
   }));
   return t;
 };
+// ————— Générateur de programme —————
+// Exercices de base par groupe, du plus polyarticulaire au plus isolé.
+const BASE_PAR_GROUPE = {
+  Jambes: ["Presse à cuisses", "Squat guidé (Smith)", "Leg extension", "Leg curl assis", "Mollets debout"],
+  Pecs: ["Développé couché barre", "Développé incliné haltères", "Pec Deck", "Écarté poulie"],
+  Dos: ["Tirage vertical", "Rowing machine", "Tirage horizontal poulie", "Pull-over poulie"],
+  Épaules: ["Développé militaire machine", "Élévations latérales", "Reverse Fly", "Face pull"],
+  Biceps: ["Curl barre EZ", "Curl marteau", "Curl incliné haltères"],
+  Triceps: ["Extension poulie corde", "Dips machine assistée", "Extension triceps machine"]
+};
+const SPLITS = {
+  2: [["Haut du corps", ["Pecs", "Dos", "Épaules", "Biceps", "Triceps"]], ["Bas du corps", ["Jambes"]]],
+  3: [["Push", ["Pecs", "Épaules", "Triceps"]], ["Pull", ["Dos", "Biceps"]], ["Jambes", ["Jambes"]]],
+  4: [["Pecs-Triceps", ["Pecs", "Triceps"]], ["Dos-Biceps", ["Dos", "Biceps"]], ["Jambes", ["Jambes"]], ["Épaules-Bras", ["Épaules", "Biceps", "Triceps"]]],
+  5: [["Push", ["Pecs", "Épaules", "Triceps"]], ["Pull", ["Dos", "Biceps"]], ["Jambes", ["Jambes"]], ["Pecs-Dos", ["Pecs", "Dos"]], ["Bras-Épaules", ["Épaules", "Biceps", "Triceps"]]]
+};
+// force : lourd et peu de reps ; hypertrophie : le classique ; seche : plus de volume, repos courts
+const OBJECTIFS_PROG = {
+  force: {
+    label: "Force",
+    series: 5,
+    reps: 5,
+    repos: 180,
+    budget: 5
+  },
+  hypertrophie: {
+    label: "Prise de muscle",
+    series: 4,
+    reps: 10,
+    repos: 90,
+    budget: 6
+  },
+  seche: {
+    label: "Sèche / définition",
+    series: 3,
+    reps: 15,
+    repos: 60,
+    budget: 7
+  }
+};
+const genererProgrammes = (objectifCle, jours, exosConnus = []) => {
+  const o = OBJECTIFS_PROG[objectifCle];
+  const split = SPLITS[jours] || SPLITS[3];
+  const dejaFait = n => exosConnus.some(x => x.toLowerCase() === n.toLowerCase());
+  return split.map(([nom, groupes]) => {
+    const exos = [];
+    // budget d'exercices réparti sur les groupes du jour : une séance reste faisable
+    const parGroupe = Math.max(1, Math.round(o.budget / groupes.length));
+    groupes.forEach(g => {
+      const dispo = BASE_PAR_GROUPE[g] || [];
+      // on met en tête les exos que la personne connaît déjà : moins de découverte, plus de charge
+      const tries = [...dispo].sort((a, b) => (dejaFait(b) ? 1 : 0) - (dejaFait(a) ? 1 : 0));
+      tries.slice(0, parGroupe).forEach(n => exos.push({
+        nom: n,
+        poids: 0,
+        parBras: false,
+        series: o.series,
+        reps: o.reps,
+        reposSec: o.repos
+      }));
+    });
+    return {
+      id: uid(),
+      nom,
+      exos
+    };
+  });
+};
 const niveauGlobal = xp => {
   // paliers quadratiques : niveau n atteint à 500·n² XP
   const niveau = Math.max(1, Math.floor(Math.sqrt(xp / 500)) + 1);
@@ -3250,6 +3318,9 @@ function App() {
   const [bilanSeance, setBilanSeance] = useState(null);
   const [recapOuvert, setRecapOuvert] = useState(false);
   const [checklistOuverte, setChecklistOuverte] = useState(false);
+  const [genOuvert, setGenOuvert] = useState(false);
+  const [genObjectif, setGenObjectif] = useState("hypertrophie");
+  const [genJours, setGenJours] = useState(3);
   const [hiitOuvert, setHiitOuvert] = useState(false);
   const [douleurZone, setDouleurZone] = useState(null);
   const [douleurNiveau, setDouleurNiveau] = useState(5);
@@ -5114,6 +5185,21 @@ function App() {
       }]
     });
   };
+  const creerProgrammes = async () => {
+    const nouveaux = genererProgrammes(genObjectif, genJours, allExos);
+    const existants = data.programmesPerso || [];
+    const noms = new Set(existants.map(p => p.nom.toLowerCase()));
+    // suffixe les doublons plutôt que d'écraser un programme que la personne a déjà réglé
+    const ajoutes = nouveaux.map(p => noms.has(p.nom.toLowerCase()) ? {
+      ...p,
+      nom: `${p.nom} (auto)`
+    } : p);
+    await saveData({
+      ...data,
+      programmesPerso: [...existants, ...ajoutes]
+    });
+    setGenOuvert(false);
+  };
   const supprimerProgrammePerso = async id => {
     if (!window.confirm("Supprimer ce programme ?")) return;
     await saveData({
@@ -5823,7 +5909,21 @@ function App() {
     }
   }, /*#__PURE__*/React.createElement(X, {
     size: 13
-  })))))))), showStart && !current && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+  }))))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setGenOuvert(true),
+    className: "w-full rounded-xl py-2.5 mt-3 font-semibold text-xs",
+    style: {
+      background: C.card2,
+      border: `1px solid ${C.line}`,
+      color: C.yellowDim
+    }
+  }, "\u2728 G\xE9n\xE9rer un programme"))), (data.programmesPerso || []).length === 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setGenOuvert(true),
+    className: "w-full text-left text-xs px-1",
+    style: {
+      color: C.yellowDim
+    }
+  }, "\u2728 G\xE9n\xE9rer un programme adapt\xE9 \xE0 mon objectif \u2192")), showStart && !current && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-bold mb-2"
   }, "C'est quoi comme s\xE9ance ?"), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 flex-wrap mb-3"
@@ -10434,7 +10534,92 @@ function App() {
   }, "Explorer d'abord"))), hiitOuvert && /*#__PURE__*/React.createElement(HiitTimer, {
     onClose: () => setHiitOuvert(false),
     onBip: beep
-  }), comparateurOuvert && (data.photosCorps || []).length > 1 && (() => {
+  }), genOuvert && (() => {
+    const apercu = genererProgrammes(genObjectif, genJours, allExos);
+    const o = OBJECTIFS_PROG[genObjectif];
+    return /*#__PURE__*/React.createElement("div", {
+      className: "fixed inset-0 z-50 overflow-y-auto",
+      style: {
+        background: C.bg
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "max-w-md mx-auto px-4",
+      style: {
+        paddingTop: "calc(1rem + env(safe-area-inset-top))",
+        paddingBottom: "calc(2rem + env(safe-area-inset-bottom))"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-start justify-between mb-4"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-xl font-bold"
+    }, "G\xE9n\xE9rer un programme"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setGenOuvert(false),
+      className: "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
+      style: {
+        background: C.card2,
+        color: C.text
+      }
+    }, /*#__PURE__*/React.createElement(X, {
+      size: 18
+    }))), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs font-extrabold tracking-widest uppercase mb-2",
+      style: {
+        color: C.dim
+      }
+    }, "Ton objectif"), /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-2 flex-wrap mb-4"
+    }, Object.entries(OBJECTIFS_PROG).map(([k, v]) => /*#__PURE__*/React.createElement(Chip, {
+      key: k,
+      active: genObjectif === k,
+      onClick: () => setGenObjectif(k)
+    }, v.label))), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs font-extrabold tracking-widest uppercase mb-2",
+      style: {
+        color: C.dim
+      }
+    }, "S\xE9ances par semaine"), /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-2 mb-4"
+    }, [2, 3, 4, 5].map(n => /*#__PURE__*/React.createElement(Chip, {
+      key: n,
+      active: genJours === n,
+      onClick: () => setGenJours(n)
+    }, n, " j"))), /*#__PURE__*/React.createElement("div", {
+      className: "rounded-xl px-3 py-2 mb-4 text-xs leading-relaxed",
+      style: {
+        background: C.card2,
+        border: `1px solid ${C.hair}`,
+        color: C.dim
+      }
+    }, o.series, " s\xE9ries de ", o.reps, " reps \xB7 ", fmtRepos(o.repos), " de repos entre les s\xE9ries."), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs font-extrabold tracking-widest uppercase mb-2",
+      style: {
+        color: C.dim
+      }
+    }, "Aper\xE7u"), /*#__PURE__*/React.createElement("div", {
+      className: "space-y-2 mb-5"
+    }, apercu.map(p => /*#__PURE__*/React.createElement(Card, {
+      key: p.id
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-sm font-bold mb-1"
+    }, p.nom), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs leading-relaxed",
+      style: {
+        color: C.dim
+      }
+    }, p.exos.map(e => e.nom).join(" · "))))), /*#__PURE__*/React.createElement("button", {
+      onClick: creerProgrammes,
+      className: "pl-tap w-full rounded-2xl py-4 font-black",
+      style: {
+        background: C.yellow,
+        color: C.onYellow
+      }
+    }, "Ajouter ces ", apercu.length, " programmes"), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs mt-3 text-center",
+      style: {
+        color: C.dim
+      }
+    }, "Les charges partent de z\xE9ro : elles se r\xE8glent \xE0 ta premi\xE8re s\xE9ance, puis PLATEAU te proposera la suite.")));
+  })(), comparateurOuvert && (data.photosCorps || []).length > 1 && (() => {
     const tries = [...(data.photosCorps || [])].sort((a, b) => a.date < b.date ? -1 : 1);
     const avant = tries[0],
       apres = tries[tries.length - 1];
