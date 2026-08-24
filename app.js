@@ -260,6 +260,7 @@ const PALETTE_CLAIR = {
   glass: "rgba(255,255,255,.82)",
   glassSoft: "rgba(255,255,255,.55)",
   inset: "rgba(255,255,255,.6)",
+  onGreen: "#ffffff",
   off: "#c4bdab" // commande désactivée : discrète mais encore visible
 };
 const PALETTE_SOMBRE = {
@@ -306,6 +307,7 @@ const PALETTE_SOMBRE = {
   glass: "rgba(30,30,38,.88)",
   glassSoft: "rgba(255,255,255,.05)",
   inset: "rgba(255,255,255,.05)",
+  onGreen: "#0c1a10",
   off: "#6b6b78"
 };
 // C est muté (pas réassigné) : toutes les lectures C.xxx faites au rendu suivent le thème.
@@ -415,20 +417,32 @@ const contientMot = (n, p) => new RegExp(`(^|[^a-z0-9])${p.replace(/[.*+?^${}()|
 
 // Score de ressemblance entre deux noms d'exercice (0 \u00e0 1) \u2014 ignore les mots g\u00e9n\u00e9riques
 // ("machine", "guid\u00e9e"...) qui font croire \u00e0 deux exos diff\u00e9rents alors que c'est le m\u00eame.
-const MOTS_GENERIQUES = new Set(["machine", "guidee", "guide", "assistee", "assiste", "poulie", "appareil"]);
+// Mots qui ne distinguent pas deux exercices : ils décrivent le matériel ou une tournure.
+const MOTS_GENERIQUES = new Set(["machine", "guidee", "guide", "assistee", "assiste", "assistance", "poulie", "appareil", "sans", "avec", "les", "des", "aux", "pour", "type", "version"]);
 const motsSignificatifs = nom => norm(nom).split(/[^a-z0-9]+/).filter(m => m.length > 2);
-const scoreRessemblance = (nomA, nomB) => {
-  const motsA = motsSignificatifs(nomA);
-  const motsB = motsSignificatifs(nomB);
-  if (!motsA.length || !motsB.length) return 0;
-  const utiles = mots => {
-    const u = mots.filter(m => !MOTS_GENERIQUES.has(m));
-    return u.length ? u : mots;
-  };
-  const uA = utiles(motsA),
-    uB = utiles(motsB);
-  const communs = uA.filter(m => uB.some(x => x.startsWith(m) || m.startsWith(x))).length;
-  return communs / Math.max(1, Math.min(uA.length, uB.length));
+const motsCles = nom => {
+  const m = motsSignificatifs(nom);
+  const u = m.filter(x => !MOTS_GENERIQUES.has(x));
+  return u.length ? u : m;
+};
+// Relation entre deux noms d'exercice :
+//   "identique" -> même exo écrit autrement, on peut fusionner sans rien perdre
+//   "variante"  -> même mouvement de base mais réglage différent (assis/allongé, barre/haltères…)
+//                  : surtout NE PAS fusionner, mais l'historique du frère sert de repère
+const relationExo = (nomA, nomB) => {
+  const A = [...new Set(motsCles(nomA))],
+    B = [...new Set(motsCles(nomB))];
+  if (!A.length || !B.length) return null;
+  const pareil = (x, y) => x === y || x.startsWith(y) || y.startsWith(x);
+  const communs = A.filter(x => B.some(y => pareil(x, y)));
+  const propresA = A.filter(x => !B.some(y => pareil(x, y)));
+  const propresB = B.filter(y => !A.some(x => pareil(x, y)));
+  if (!communs.length) return null;
+  // mêmes mots-clés de part et d'autre : seuls des mots vides diffèrent, c'est le même exo.
+  // Un mot en plus qui a du sens (allongé, unilatéral…) désigne un autre réglage, pas un doublon.
+  if (!propresA.length && !propresB.length) return "identique";
+  if (communs.length >= 2) return "variante";
+  return null;
 };
 const MUSCLE_PATTERNS = [["Jambes", ["jambe", "squat", "presse", "leg", "fente", "mollet", "calf", "ischio", "hack", "cuisse", "quad", "abduc", "adduc"]], ["Épaules", ["shoulder", "epaule", "elevation", "militaire", "reverse fly", "face pull", "lateral"]], ["Dos", ["tirage", "row", "pull", "traction", "dorsa", "lombaire"]], ["Triceps", ["triceps", "corde", "front", "skull", "pushdown", "kickback", "extension"]], ["Biceps", ["curl", "biceps", "marteau", "ez"]], ["Pecs", ["pec", "couche", "incline", "convergent", "ecart", "dips", "pompe", "butterfly", "chest", "developpe"]]];
 const MUSCLE_ORDRE = ["Pecs", "Dos", "Épaules", "Biceps", "Triceps", "Jambes", "Autre"];
@@ -2543,10 +2557,39 @@ const RENOMMAGES = {
   "delts machine": "Élévations latérales machine",
   "lat machine": "Pull Down machine"
 };
-const MIGRATION = 3; // incrémenter pour rejouer la migration
+// Normalise un nom tapé en salle. Le match exact ne suffisait pas : « Delts machine » était
+// corrigé mais pas « Delts machine sans assistance », ce qui recréait un doublon à chaque variante.
+const nomNormalise = nom => {
+  const n = norm(nom);
+  if (RENOMMAGES[n]) return RENOMMAGES[n];
+  // sinon on remplace le plus long alias qui préfixe le nom, en gardant la suite
+  let best = null;
+  for (const alias of Object.keys(RENOMMAGES)) {
+    if (n.startsWith(alias + " ")) {
+      if (!best || alias.length > best.length) best = alias;
+    }
+  }
+  if (!best) return nom;
+  const reste = nom.slice(nom.length - (n.length - best.length)).trim();
+  // on ne réécrit que si la fin n'ajoute aucun sens ("sans assistance") : sinon c'est un autre
+  // réglage et le nom tapé doit être conservé tel quel.
+  const resteVide = motsSignificatifs(reste).every(m => MOTS_GENERIQUES.has(m));
+  if (!resteVide) return nom;
+  return reste ? `${RENOMMAGES[best]} ${reste}` : RENOMMAGES[best];
+};
+// Nom retenu au moment d'enregistrer : normalisé, puis aligné sur un exo existant s'il est
+// strictement le même (mêmes mots-clés, seuls des mots vides diffèrent).
+const nomCanonique = (nom, connus = []) => {
+  const propre = nomNormalise(nom);
+  const dejaLa = connus.find(c => norm(c) === norm(propre));
+  if (dejaLa) return dejaLa;
+  const jumeau = connus.find(c => relationExo(propre, c) === "identique");
+  return jumeau || propre;
+};
+const MIGRATION = 4; // incrémenter pour rejouer la migration
 const migrerNoms = d => {
   if ((d.migration || 0) >= MIGRATION) return d;
-  const propre = nom => RENOMMAGES[norm(nom)] || nom;
+  const propre = nom => nomNormalise(nom);
   return {
     ...d,
     migration: MIGRATION,
@@ -3655,15 +3698,19 @@ function App() {
     if (!q || q.length < 4 || editExoId) return null;
     const nq = norm(q);
     if (allExos.some(n => norm(n) === nq)) return null; // nom déjà connu, rien à signaler
-    let best = null;
-    allExos.forEach(n => {
-      const score = scoreRessemblance(q, n);
-      if (score >= 0.5 && (!best || score > best.score)) best = {
-        nom: n,
-        score
-      };
-    });
-    return best;
+    // seul "identique" justifie de proposer le même exo : une variante est un exo à part entière
+    const trouve = allExos.find(n => relationExo(q, n) === "identique");
+    return trouve ? {
+      nom: trouve
+    } : null;
+  }, [fNom, allExos, editExoId]);
+
+  // Variantes du même mouvement déjà pratiquées : sert de repère quand on découvre un réglage
+  const variantesConnues = useMemo(() => {
+    const q = fNom.trim();
+    if (!q || q.length < 4 || editExoId) return [];
+    const nq = norm(q);
+    return allExos.filter(n => norm(n) !== nq && relationExo(q, n) === "variante").slice(0, 3);
   }, [fNom, allExos, editExoId]);
 
   // Doublons déjà présents dans l'historique (ex. "Extension triceps" et "Extension triceps machine")
@@ -3676,8 +3723,7 @@ function App() {
         const a = noms[i],
           b = noms[j];
         if (norm(a) === norm(b)) continue;
-        const score = scoreRessemblance(a, b);
-        if (score >= 0.6) {
+        if (relationExo(a, b) === "identique") {
           const cle = [a, b].sort().join("|");
           if (!vus.has(cle)) {
             vus.add(cle);
@@ -3726,6 +3772,14 @@ function App() {
       cible: last.poids,
       monte: false
     };
+  };
+  // « reste à X kg » se lisait comme « il te reste X kg » et était carrément faux en semaine
+  // allégée, où la cible est plus basse. On dit maintenant ce qu'il faut faire de la charge.
+  const texteCharge = sg => {
+    if (!sg) return "";
+    if (sg.monte) return `monte à ${fmtKg(sg.cible)} kg`;
+    if (sg.deload) return `allège à ${fmtKg(sg.cible)} kg (semaine allégée)`;
+    return `garde ${fmtKg(sg.cible)} kg`;
   };
   const bestBefore = nom => {
     const all = [...data.seances.flatMap(s => s.exos), ...(current ? current.exos : [])].filter(e => e.nom.toLowerCase() === nom.toLowerCase()).map(e => e.poids);
@@ -3892,7 +3946,7 @@ function App() {
       const prevAt = current.exos.length ? current.exos[current.exos.length - 1].at || current.startedAt : current.startedAt;
       const exo = {
         id: uid(),
-        nom: fNom.trim(),
+        nom: nomCanonique(fNom.trim(), allExos),
         type: "cardio",
         dureeCardio: fDuree,
         distance: String(fDistance).trim() ? parseFloat(String(fDistance).replace(",", ".")) : null,
@@ -3929,7 +3983,7 @@ function App() {
           ...current,
           exos: current.exos.map(e => e.id === editExoId ? {
             ...e,
-            nom: fNom.trim(),
+            nom: nomCanonique(fNom.trim(), allExos),
             type: "cardio",
             dureeCardio: fDuree,
             distance: String(fDistance).trim() ? parseFloat(String(fDistance).replace(",", ".")) : null,
@@ -3946,7 +4000,7 @@ function App() {
         ...current,
         exos: current.exos.map(e => e.id === editExoId ? {
           ...e,
-          nom: fNom.trim(),
+          nom: nomCanonique(fNom.trim(), allExos),
           poids,
           parBras: fParBras,
           series: fSeries,
@@ -3967,7 +4021,7 @@ function App() {
     if (serieMode) {
       const exoEnCours = {
         id: uid(),
-        nom: fNom.trim(),
+        nom: nomCanonique(fNom.trim(), allExos),
         parBras: fParBras,
         reposSec: fRepos,
         photoId: fPhotoId,
@@ -4002,7 +4056,7 @@ function App() {
     const prevAt = current.exos.length ? current.exos[current.exos.length - 1].at || current.startedAt : current.startedAt;
     const exo = {
       id: uid(),
-      nom: fNom.trim(),
+      nom: nomCanonique(fNom.trim(), allExos),
       poids,
       parBras: fParBras,
       series: fSeries,
@@ -4752,6 +4806,7 @@ function App() {
       objectifsExo
     });
   };
+  const ressentiDuJour = (data.ressentis || {})[todayISO()] || {};
   const enregistrerRessenti = async (champ, valeur) => {
     const jour = todayISO();
     const ressentis = {
@@ -4893,6 +4948,32 @@ function App() {
       checklist: liste.length ? liste : null
     });
   };
+
+  // Le poids de corps stagne alors que les charges montent : en prise de masse, c'est le signe
+  // que l'apport calorique ne suit pas. Une pesée isolée ne le montre pas, la tendance oui.
+  const stagnationPoids = useMemo(() => {
+    const arr = [...(data.poids || [])].sort((a, b) => a.date < b.date ? -1 : 1);
+    if (arr.length < 4) return null;
+    const dernier = arr[arr.length - 1];
+    if (joursDepuis(dernier.date) > 21) return null; // données trop vieilles pour conclure
+    const ilYa28j = isoOf(new Date(Date.now() - 28 * 86400000));
+    const fenetre = arr.filter(p => p.date >= ilYa28j);
+    if (fenetre.length < 3) return null;
+    const debut = fenetre[0],
+      fin = fenetre[fenetre.length - 1];
+    if (joursDepuis(debut.date) < 21) return null; // pas assez de recul
+    const delta = Math.round((fin.kg - debut.kg) * 10) / 10;
+    const vise = OBJECTIF_POIDS - fin.kg;
+    if (Math.abs(vise) < 1) return null; // objectif quasi atteint
+    const progresse = vise > 0 ? delta >= 0.4 : delta <= -0.4;
+    if (progresse) return null;
+    return {
+      delta,
+      actuel: fin.kg,
+      jours: joursDepuis(debut.date),
+      prise: vise > 0
+    };
+  }, [data.poids]);
   const alerteSurentrainement = useMemo(() => {
     const isoMin = isoOf(new Date(Date.now() - 7 * 86400000));
     const recentes = data.seances.filter(s => s.date >= isoMin);
@@ -5692,7 +5773,14 @@ function App() {
       border: `1px solid ${C.yellow}`,
       color: C.yellowDim
     }
-  }, "\uD83C\uDF89 Il y a 1 an jour pour jour, tu battais ton record de ", souvenirRecord.nom, " \xE0 ", fmtKg(souvenirRecord.poids), " kg."), alerteSurentrainement && /*#__PURE__*/React.createElement("div", {
+  }, "\uD83C\uDF89 Il y a 1 an jour pour jour, tu battais ton record de ", souvenirRecord.nom, " \xE0 ", fmtKg(souvenirRecord.poids), " kg."), stagnationPoids && /*#__PURE__*/React.createElement("div", {
+    className: "rounded-xl px-3 py-2 text-xs font-semibold leading-relaxed",
+    style: {
+      background: C.warnBg,
+      border: `1px solid ${C.yellow}`,
+      color: C.yellowDim
+    }
+  }, "\u2696\uFE0F ", stagnationPoids.actuel, " kg \u2014 ", stagnationPoids.delta === 0 ? "stable" : `${stagnationPoids.delta > 0 ? "+" : ""}${stagnationPoids.delta} kg`, " en ", stagnationPoids.jours, " jours,", " ", "alors que tes charges montent. En ", stagnationPoids.prise ? "prise de masse" : "sèche", ", c'est l'assiette qui bloque, pas l'entra\xEEnement."), alerteSurentrainement && /*#__PURE__*/React.createElement("div", {
     className: "rounded-xl px-3 py-2 text-xs font-semibold leading-relaxed",
     style: {
       background: C.errBg,
@@ -5787,7 +5875,7 @@ function App() {
         height: 22,
         background: coche ? C.green : C.card2,
         border: `1px solid ${coche ? C.green : C.line}`,
-        color: "#fff"
+        color: C.onGreen
       }
     }, coche ? "✓" : ""), /*#__PURE__*/React.createElement("span", {
       className: "text-sm",
@@ -6463,7 +6551,7 @@ function App() {
         height: 22,
         background: visible ? C.green : C.card2,
         border: `1px solid ${visible ? C.green : C.line}`,
-        color: "#fff"
+        color: C.onGreen
       }
     }, visible ? "✓" : ""), /*#__PURE__*/React.createElement("span", {
       className: "text-sm flex-1 min-w-0 truncate",
@@ -6914,7 +7002,7 @@ function App() {
         ...NUMS,
         color: s2.monte ? C.yellowDim : C.dim
       }
-    }, s2.monte ? `vise ${fmtKg(s2.cible)} kg (dernière fois ${fmtKg(s2.last.poids)}, marge)` : `reste à ${fmtKg(s2.cible)} kg${s2.last.ressenti === "tirait" ? " (ça tirait)" : ""}`)), !fait && /*#__PURE__*/React.createElement("div", {
+    }, `${texteCharge(s2)} — dernière fois ${fmtKg(s2.last.poids)} kg${s2.last.ressenti === "tirait" ? ", ça tirait" : s2.last.ressenti === "marge" ? ", avec de la marge" : ""}`)), !fait && /*#__PURE__*/React.createElement("div", {
       className: "text-sm font-bold shrink-0",
       style: {
         color: C.yellowDim
@@ -7162,7 +7250,7 @@ function App() {
     style: {
       color: sugg.monte ? C.yellowDim : C.text
     }
-  }, sugg.monte ? `objectif ${fmtKg(sugg.cible)} kg` : `reste à ${fmtKg(sugg.cible)} kg`), sugg.last.pr ? " (record en cours)" : ""), doublonProbable && /*#__PURE__*/React.createElement("div", {
+  }, texteCharge(sugg)), sugg.last.pr ? " (record en cours)" : ""), doublonProbable && /*#__PURE__*/React.createElement("div", {
     className: "rounded-xl px-3 py-2 mb-3 text-sm leading-relaxed",
     style: {
       background: C.card2,
@@ -7178,7 +7266,37 @@ function App() {
     style: {
       color: C.dim
     }
-  }, " \u2014 sinon continue, ce sera un nouvel exercice.")), sugg && !isCardio && histoOf(fNom.trim()).length > 1 && /*#__PURE__*/React.createElement("div", {
+  }, " \u2014 sinon continue, ce sera un nouvel exercice.")), variantesConnues.length > 0 && !doublonProbable && /*#__PURE__*/React.createElement("div", {
+    className: "rounded-xl px-3 py-2 mb-3 text-xs leading-relaxed",
+    style: {
+      background: C.card2,
+      border: `1px solid ${C.hair}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.dim
+    }
+  }, "Nouveau r\xE9glage \u2014 voil\xE0 tes rep\xE8res sur le m\xEAme mouvement :"), variantesConnues.map(v => {
+    const h = histoOf(v);
+    const d = h.length ? h[h.length - 1] : null;
+    return /*#__PURE__*/React.createElement("button", {
+      key: v,
+      onClick: () => pickExo(v),
+      className: "w-full text-left mt-1",
+      style: {
+        ...NUMS
+      }
+    }, /*#__PURE__*/React.createElement("b", null, v), d ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.dim
+      }
+    }, " \u2014 ", fmtKg(d.poids), " kg le ", fmtShort(d.date)) : null);
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "mt-1",
+    style: {
+      color: C.dim
+    }
+  }, "Tape un nom pour reprendre cette variante, sinon continue.")), sugg && !isCardio && histoOf(fNom.trim()).length > 1 && /*#__PURE__*/React.createElement("div", {
     className: "text-xs mb-3",
     style: {
       ...NUMS,
@@ -7473,7 +7591,12 @@ function App() {
       color: fParBras ? "#111" : C.dim,
       border: `1px solid ${fParBras ? C.yellow : C.hair}`
     }
-  }, "/bras")), /*#__PURE__*/React.createElement("div", {
+  }, "/bras")), !isCardio && !editExoId && /*#__PURE__*/React.createElement("div", {
+    className: "text-xs mb-1.5",
+    style: {
+      color: fParBras ? C.yellowDim : C.dim
+    }
+  }, fParBras ? `Charge par bras : ${String(fPoids).trim() ? fmtKg((parseFloat(String(fPoids).replace(",", ".")) || 0) * 2) + " kg" : "le double"} compté au total.` : "Le poids affiché sur la machine. Coche /bras seulement si chaque bras porte cette charge (haltères, machine à charges séparées)."), /*#__PURE__*/React.createElement("div", {
     className: "mb-3"
   }, !editExoId && !String(fPoids).trim() && sugg && /*#__PURE__*/React.createElement("button", {
     onClick: () => setFPoids(fmtKg(sugg.last.poids)),
@@ -9920,7 +10043,7 @@ function App() {
         ...NUMS,
         color: sg.monte ? C.yellowDim : C.dim
       }
-    }, sg.monte ? `Prochaine fois : vise ${fmtKg(sg.cible)} kg` : `Prochaine fois : reste à ${fmtKg(sg.cible)} kg`)), !cardio && (() => {
+    }, `Prochaine fois : ${texteCharge(sg)}`)), !cardio && (() => {
       const obj = (data.objectifsExo || {})[nom.toLowerCase()];
       const actuel = rec ? rec.poids : 0;
       const pct = obj ? Math.max(0, Math.min(100, Math.round(actuel / obj.cible * 100))) : 0;
@@ -10324,17 +10447,48 @@ function App() {
       className: "text-lg font-bold mt-1 truncate"
     }, ec.nom) : current ? /*#__PURE__*/React.createElement("div", {
       className: "text-lg font-bold mt-1 truncate"
-    }, current.nom) : null, ec ? /*#__PURE__*/React.createElement("div", {
-      className: "text-base mt-0.5",
-      style: {
-        color: C.dim
-      }
-    }, "S\xE9rie ", ec.sets.length, ec.prevu ? `/${ec.prevu}` : "", " faite \xB7 prochaine : n\xB0", ec.sets.length + 1) : current && current.exos.length > 0 ? /*#__PURE__*/React.createElement("div", {
-      className: "text-base mt-0.5",
-      style: {
-        color: C.green
-      }
-    }, current.exos[current.exos.length - 1].nom, " termin\xE9 (", current.exos[current.exos.length - 1].series, " s\xE9ries)") : null), /*#__PURE__*/React.createElement("div", {
+    }, current.nom) : null, ec ? (() => {
+      const d = ec.sets[ec.sets.length - 1];
+      return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+        className: "text-base mt-0.5",
+        style: {
+          color: C.dim
+        }
+      }, "S\xE9rie ", ec.sets.length, ec.prevu ? `/${ec.prevu}` : "", " faite \xB7 prochaine : n\xB0", ec.sets.length + 1), d && /*#__PURE__*/React.createElement("div", {
+        className: "inline-block rounded-xl px-3 py-1.5 mt-2 text-base font-bold",
+        style: {
+          ...NUMS,
+          background: C.okBg,
+          border: `1px solid ${C.green}`,
+          color: C.green
+        }
+      }, "\u2713 ", fmtKg(d.poids), " kg \xD7 ", d.reps, ec.parBras ? " /bras" : ""));
+    })() : current && current.exos.length > 0 ? (() => {
+      // ce qui vient d'être enregistré, en toutes lettres : plus besoin d'aller revérifier
+      const d = current.exos[current.exos.length - 1];
+      return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+        className: "text-base mt-0.5 font-semibold"
+      }, d.nom), /*#__PURE__*/React.createElement("div", {
+        className: "inline-block rounded-xl px-3 py-1.5 mt-2 text-base font-bold",
+        style: {
+          ...NUMS,
+          background: C.okBg,
+          border: `1px solid ${C.green}`,
+          color: C.green
+        }
+      }, d.type === "cardio" ? `✓ ${d.dureeCardio} min` : `✓ ${d.series} × ${d.reps} @ ${fmtKg(d.poids)} kg${d.parBras ? " /bras" : ""}`), /*#__PURE__*/React.createElement("div", {
+        className: "mt-2"
+      }, /*#__PURE__*/React.createElement("button", {
+        onClick: () => {
+          fermer();
+          editerExo(d);
+        },
+        className: "text-xs font-semibold underline",
+        style: {
+          color: C.dim
+        }
+      }, "Pas \xE7a ? corriger")));
+    })() : null), /*#__PURE__*/React.createElement("div", {
       className: "flex-1 flex items-center justify-center"
     }, /*#__PURE__*/React.createElement("div", {
       className: "relative flex items-center justify-center" + (done ? " pl-go" : ""),
@@ -10785,6 +10939,44 @@ function App() {
         color: C.dim
       }
     }, titreFun(s)), /*#__PURE__*/React.createElement("div", {
+      className: "mt-4 w-full rounded-2xl p-3.5",
+      style: {
+        maxWidth: 340,
+        background: C.card,
+        border: `1px solid ${ressentiDuJour.fatigue && ressentiDuJour.motivation ? C.green : C.yellow}`
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-xs font-black tracking-widest uppercase mb-2.5",
+      style: {
+        color: ressentiDuJour.fatigue && ressentiDuJour.motivation ? C.green : C.yellowDim
+      }
+    }, ressentiDuJour.fatigue && ressentiDuJour.motivation ? "Ressenti noté ✓" : "Comment tu te sens ?"), [["fatigue", "Fatigue", ["😴", "😐", "💪"]], ["motivation", "Motivation", ["👎", "😐", "🔥"]]].map(([cle, titre, emojis]) => /*#__PURE__*/React.createElement("div", {
+      key: cle,
+      className: "flex items-center justify-between mb-2"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-sm font-bold"
+    }, titre), /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-2"
+    }, emojis.map((e, i) => {
+      const actif = ressentiDuJour[cle] === i + 1;
+      return /*#__PURE__*/React.createElement("button", {
+        key: i,
+        onClick: () => enregistrerRessenti(cle, i + 1),
+        className: "pl-tap rounded-xl flex items-center justify-center",
+        style: {
+          width: 48,
+          height: 44,
+          fontSize: 22,
+          background: actif ? C.yellow : C.card2,
+          border: `1px solid ${actif ? C.yellow : C.line}`
+        }
+      }, e);
+    })))), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs mt-1",
+      style: {
+        color: C.dim
+      }
+    }, "Deux taps \u2014 c'est ce qui permet de distinguer une s\xE9ance faible d'un vrai signal de fatigue.")), /*#__PURE__*/React.createElement("div", {
       className: "grid grid-cols-3 gap-3 w-full",
       style: {
         maxWidth: 340
@@ -10829,45 +11021,6 @@ function App() {
         color: C.text
       }
     }, prs.map(e => `${e.nom} ${fmtKg(e.poids)} kg`).join(" · "))), /*#__PURE__*/React.createElement("div", {
-      className: "mt-5 w-full rounded-2xl p-3",
-      style: {
-        maxWidth: 340,
-        background: C.card,
-        border: `1px solid ${C.hair}`
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center justify-between mb-3"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "text-xs font-bold",
-      style: {
-        color: C.dim
-      }
-    }, "Fatigue"), /*#__PURE__*/React.createElement("div", {
-      className: "flex gap-1.5"
-    }, ["😴", "😐", "💪"].map((e, i) => /*#__PURE__*/React.createElement("button", {
-      key: i,
-      onClick: () => enregistrerRessenti("fatigue", i + 1),
-      className: "w-9 h-9 rounded-lg flex items-center justify-center text-lg",
-      style: {
-        background: (data.ressentis || {})[todayISO()]?.fatigue === i + 1 ? C.yellow : C.card2
-      }
-    }, e)))), /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center justify-between mb-1"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "text-xs font-bold",
-      style: {
-        color: C.dim
-      }
-    }, "Motivation"), /*#__PURE__*/React.createElement("div", {
-      className: "flex gap-1.5"
-    }, ["👎", "😐", "🔥"].map((e, i) => /*#__PURE__*/React.createElement("button", {
-      key: i,
-      onClick: () => enregistrerRessenti("motivation", i + 1),
-      className: "w-9 h-9 rounded-lg flex items-center justify-center text-lg",
-      style: {
-        background: (data.ressentis || {})[todayISO()]?.motivation === i + 1 ? C.yellow : C.card2
-      }
-    }, e))))), /*#__PURE__*/React.createElement("div", {
       className: "mt-3 w-full rounded-2xl p-3",
       style: {
         maxWidth: 340,
@@ -10902,7 +11055,7 @@ function App() {
       className: "pl-tap w-full rounded-xl py-2.5 font-bold text-sm",
       style: {
         background: douleurOk ? C.green : C.yellow,
-        color: douleurOk ? "#fff" : "#111"
+        color: douleurOk ? C.onGreen : C.onYellow
       }
     }, douleurOk ? "Noté ✓" : "Enregistrer"))), /*#__PURE__*/React.createElement("button", {
       onClick: () => genererCarte(s),
@@ -10921,9 +11074,9 @@ function App() {
       style: {
         maxWidth: 340,
         background: C.yellow,
-        color: "#111"
+        color: C.onYellow
       }
-    }, "Termin\xE9"), /*#__PURE__*/React.createElement("div", {
+    }, ressentiDuJour.fatigue && ressentiDuJour.motivation ? "Terminé" : "Terminer sans noter le ressenti"), /*#__PURE__*/React.createElement("div", {
       className: "text-xs mt-3 flex items-center gap-1.5",
       style: {
         color: C.dim
