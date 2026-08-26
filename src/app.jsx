@@ -2960,6 +2960,31 @@ function App() {
     return [...past.exos].sort((a, b) => rang(a.nom) - rang(b.nom));
   }, [current, data]);
 
+  // Le plan reprend la derniere seance du meme nom : sans garde-fou, ce sont les memes exos
+  // indefiniment. On propose une alternative quand un exo tourne depuis trop longtemps.
+  const rotationPour = (nomExo) => {
+    if (!current) return null;
+    const memeType = data.seances.filter((s) => s.nom.toLowerCase() === current.nom.toLowerCase()).slice(-5);
+    if (memeType.length < 4) return null;
+    const fait = memeType.filter((s) => s.exos.some((e) => e.nom.toLowerCase() === nomExo.toLowerCase())).length;
+    if (fait < 4) return null;
+    const groupe = muscleOf(nomExo);
+    const ilYa30j = isoOf(new Date(Date.now() - 30 * 86400000));
+    const recents = new Set(
+      data.seances.filter((s) => s.date >= ilYa30j).flatMap((s) => s.exos.map((e) => norm(e.nom)))
+    );
+    const candidats = [...(BASE_PAR_GROUPE[groupe] || []), ...CATALOGUE]
+      .filter((n) => muscleOf(n) === groupe && !recents.has(norm(n)))
+      .filter((n, i, arr) => arr.findIndex((x) => norm(x) === norm(n)) === i);
+    if (!candidats.length) return null;
+    // decalage stable par exo : deux exos du meme groupe ne proposent pas la meme paire
+    const graine = [...norm(nomExo)].reduce((a, ch) => a + ch.charCodeAt(0), 0);
+    const debut = graine % candidats.length;
+    const alternatives = [candidats[debut], candidats[(debut + 1) % candidats.length]]
+      .filter((x, i, arr) => x && arr.indexOf(x) === i);
+    return { fait, alternatives };
+  };
+
   const deplacerPlan = async (idx, dir) => {
     if (!planSeance || !current) return;
     const cible = idx + dir;
@@ -4788,6 +4813,21 @@ function App() {
                                     {`${texteCharge(s2)} — dernière fois ${fmtKg(s2.last.poids)} kg${s2.last.ressenti === "tirait" ? ", ça tirait" : s2.last.ressenti === "marge" ? ", avec de la marge" : ""}`}
                                   </div>
                                 )}
+                                {!fait && (() => {
+                                  const rot = rotationPour(p.nom);
+                                  if (!rot) return null;
+                                  return (
+                                    <div className="text-xs mt-0.5" style={{ color: C.dim }}>
+                                      🔄 {rot.fait} séances d'affilée — change pour{" "}
+                                      {rot.alternatives.map((alt, k) => (
+                                        <span key={alt}>
+                                          {k > 0 && " ou "}
+                                          <span onClick={(ev) => { ev.stopPropagation(); pickExo(alt); }} className="font-bold underline" style={{ color: C.yellowDim }}>{alt}</span>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                                 {!fait && <div className="text-sm font-bold shrink-0" style={{ color: C.yellowDim }}>Préparer</div>}
                               </button>
