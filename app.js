@@ -877,6 +877,29 @@ const xpTotal = d => {
   return Math.round(seances * 100 + series * 5 + records * 250 + tonnage / 100);
 };
 // Niveau par groupe musculaire : basé sur le total de séries faites depuis le début.
+// Contexte de la journée : croisé avec le ressenti, il explique après coup une séance qui sort
+// du lot, au lieu d'avoir à reconstituer la cause de mémoire.
+const CONTEXTE_SEANCE = [{
+  cle: "repas",
+  titre: "Repas",
+  ok: "réguliers",
+  souci: "sautés"
+}, {
+  cle: "stress",
+  titre: "Stress",
+  ok: "normal",
+  souci: "élevé"
+}, {
+  cle: "rythme",
+  titre: "Rythme de sommeil",
+  ok: "habituel",
+  souci: "décalé"
+}];
+// Ce qui a été signalé de travers ce jour-là, en clair.
+const soucisDuJour = r => {
+  if (!r) return [];
+  return CONTEXTE_SEANCE.filter(c => r[c.cle] === 2).map(c => `${c.titre.toLowerCase()} ${c.souci}`);
+};
 const RANGS_MUSCLE = [{
   min: 0,
   nom: "Vierge",
@@ -4607,6 +4630,30 @@ function App() {
     dt.setDate(dt.getDate() - i);
     return ((data.jours || {})[isoOf(dt)] || {}).sommeil;
   }).filter(v => v != null);
+  // Un coucher très décalé explique une séance ratée mieux qu'un total d'heures : on compare
+  // l'heure du jour à la médiane des deux dernières semaines. Minuit passé compte comme "tard".
+  const decalageCoucher = useMemo(() => {
+    const enMinutes = hhmm => {
+      const [h, m] = String(hhmm).split(":").map(Number);
+      if (isNaN(h) || isNaN(m)) return null;
+      const min = h * 60 + m;
+      return h < 12 ? min + 24 * 60 : min; // 3h du matin = 27h, pour rester comparable à 23h
+    };
+    const jours = data.jours || {};
+    const ceSoir = enMinutes(jourDuJour.coucher);
+    if (ceSoir == null) return null;
+    const isoMin = isoOf(new Date(Date.now() - 14 * 86400000));
+    const passes = Object.keys(jours).filter(d => d >= isoMin && d !== todayISO() && jours[d].coucher).map(d => enMinutes(jours[d].coucher)).filter(x => x != null).sort((a, b) => a - b);
+    if (passes.length < 3) return null;
+    const median = passes[Math.floor(passes.length / 2)];
+    const ecart = Math.abs(ceSoir - median);
+    if (ecart < 90) return null;
+    const fmt = min => `${String(Math.floor(min % (24 * 60) / 60)).padStart(2, "0")}h${String(min % 60).padStart(2, "0")}`;
+    return {
+      h: Math.round(ecart / 60 * 10) / 10,
+      habituel: fmt(median)
+    };
+  }, [data.jours, jourDuJour.coucher]);
   const sommeilMoyen = sommeils.length ? Math.round(sommeils.reduce((a, b) => a + b, 0) / sommeils.length * 10) / 10 : null;
   const dernierPoids = (data.poids || []).length ? data.poids[data.poids.length - 1] : null;
   const poidsCorps = dernierPoids ? dernierPoids.kg : POIDS_DEFAUT;
@@ -5177,6 +5224,21 @@ function App() {
       mensu: (data.mensu || []).filter(m => !(m.date === date && m.zone === zone))
     });
   };
+
+  // La balance peut stagner alors que les mensurations bougent : c'est souvent le signal le plus
+  // fiable en prise de masse, mais il ne sert à rien s'il n'est jamais relevé.
+  const rappelMensu = useMemo(() => {
+    const arr = data.mensu || [];
+    if (!data.seances.length) return null;
+    if (!arr.length) return {
+      jamais: true
+    };
+    const derniere = arr.reduce((a, m) => m.date > a ? m.date : a, arr[0].date);
+    const j = joursDepuis(derniere);
+    return j >= 21 ? {
+      jours: j
+    } : null;
+  }, [data.mensu, data.seances.length]);
   const dernieresMensu = ZONES.map(z => {
     const zs = (data.mensu || []).filter(m => m.zone === z);
     if (!zs.length) return {
@@ -5773,7 +5835,13 @@ function App() {
       border: `1px solid ${C.yellow}`,
       color: C.yellowDim
     }
-  }, "\uD83C\uDF89 Il y a 1 an jour pour jour, tu battais ton record de ", souvenirRecord.nom, " \xE0 ", fmtKg(souvenirRecord.poids), " kg."), stagnationPoids && /*#__PURE__*/React.createElement("div", {
+  }, "\uD83C\uDF89 Il y a 1 an jour pour jour, tu battais ton record de ", souvenirRecord.nom, " \xE0 ", fmtKg(souvenirRecord.poids), " kg."), rappelMensu && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setTab("recup"),
+    className: "w-full text-left text-xs px-1",
+    style: {
+      color: C.yellowDim
+    }
+  }, "\uD83D\uDCCF ", rappelMensu.jamais ? "Jamais mesuré bras / pecs / taille — 2 min, et tu vois ce que la balance ne montre pas" : `Mensurations pas relevées depuis ${rappelMensu.jours} jours — 2 min pour capter ce que le poids cache`, " \u2192"), stagnationPoids && /*#__PURE__*/React.createElement("div", {
     className: "rounded-xl px-3 py-2 text-xs font-semibold leading-relaxed",
     style: {
       background: C.warnBg,
@@ -7961,7 +8029,37 @@ function App() {
       color: sommeilMoyen < 6.5 ? C.red : C.dim,
       ...NUMS
     }
-  }, "Moyenne sur 7 jours : ", fmtKg(sommeilMoyen), " h")), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+  }, "Moyenne sur 7 jours : ", fmtKg(sommeilMoyen), " h"), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mt-3 pt-3",
+    style: {
+      borderTop: `1px solid ${C.line}`
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-bold"
+  }, "Heure de coucher"), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs",
+    style: {
+      color: C.dim
+    }
+  }, "Un coucher d\xE9cal\xE9 p\xE8se autant qu'une heure en moins.")), /*#__PURE__*/React.createElement("input", {
+    type: "time",
+    value: jourDuJour.coucher || "",
+    onChange: e => setJour({
+      coucher: e.target.value || null
+    }),
+    className: "rounded-xl px-3 py-2 text-base font-bold shrink-0",
+    style: {
+      background: C.card2,
+      border: `1px solid ${C.line}`,
+      color: C.text,
+      ...NUMS
+    }
+  })), decalageCoucher && /*#__PURE__*/React.createElement("div", {
+    className: "text-xs mt-2 font-semibold",
+    style: {
+      color: C.yellowDim
+    }
+  }, "\uD83C\uDF19 ", decalageCoucher.h, "h de d\xE9calage par rapport \xE0 ton coucher habituel (", decalageCoucher.habituel, ").")), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-bold mb-3"
   }, "Ma routine du jour"), /*#__PURE__*/React.createElement("div", {
     className: "text-sm mb-1 flex items-center gap-2",
@@ -8535,7 +8633,23 @@ function App() {
       }
     })), open && /*#__PURE__*/React.createElement("div", {
       className: "mt-3"
-    }, s.exos.map(e => {
+    }, (() => {
+      const r = (data.ressentis || {})[s.date];
+      if (!r) return null;
+      const soucis = soucisDuJour(r);
+      const fat = ["", "fatigué", "moyen", "en forme"][r.fatigue] || null;
+      const mot = ["", "sans envie", "moyenne", "à fond"][r.motivation] || null;
+      const bouts = [fat && `ressenti ${fat}`, mot && `motivation ${mot}`, ...soucis].filter(Boolean);
+      if (!bouts.length) return null;
+      return /*#__PURE__*/React.createElement("div", {
+        className: "rounded-xl px-3 py-2 mb-2 text-xs leading-relaxed",
+        style: {
+          background: soucis.length ? C.warnBg : C.card2,
+          border: `1px solid ${soucis.length ? C.yellow : C.hair}`,
+          color: soucis.length ? C.yellowDim : C.dim
+        }
+      }, soucis.length ? "⚠️ " : "📝 ", "Ce jour-l\xE0 : ", bouts.join(" · "), ".");
+    })(), s.exos.map(e => {
       const enEdition = ehKey === s.id + "|" + e.id;
       return /*#__PURE__*/React.createElement("div", {
         key: e.id,
@@ -10907,6 +11021,12 @@ function App() {
     const nbSeries = s.exos.reduce((a, e) => a + (e.type === "cardio" ? 0 : e.series || 0), 0);
     const tonnage = tonnageSeance(s);
     const prs = s.exos.filter(e => e.pr);
+    // Séance nettement en dessous de l'habitude sur ce type : on le dit tout de suite, avec
+    // ce qui a été noté du jour — sinon la cause est introuvable une semaine plus tard.
+    const memeType = data.seances.filter(x => x.nom.toLowerCase() === s.nom.toLowerCase() && x.id !== s.id);
+    const moyenne = memeType.length >= 2 ? memeType.reduce((a, x) => a + tonnageSeance(x), 0) / memeType.length : null;
+    const enDessous = moyenne && tonnage < moyenne * 0.8;
+    const soucis = soucisDuJour(ressentiDuJour);
     const tuiles = [[fmtDuree(s.duree) || "—", "durée"], [String(nbSeries), "séries"], [`${tonnage.toLocaleString("fr-FR")}`, "kg soulevés"]];
     return /*#__PURE__*/React.createElement("div", {
       className: "fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center overflow-y-auto",
@@ -10972,11 +11092,55 @@ function App() {
         }
       }, e);
     })))), /*#__PURE__*/React.createElement("div", {
-      className: "text-xs mt-1",
+      className: "mt-3 pt-3",
+      style: {
+        borderTop: `1px solid ${C.line}`
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-xs font-black tracking-widest uppercase mb-2",
       style: {
         color: C.dim
       }
-    }, "Deux taps \u2014 c'est ce qui permet de distinguer une s\xE9ance faible d'un vrai signal de fatigue.")), /*#__PURE__*/React.createElement("div", {
+    }, "Et aujourd'hui ?"), CONTEXTE_SEANCE.map(({
+      cle,
+      titre,
+      ok,
+      souci
+    }) => /*#__PURE__*/React.createElement("div", {
+      key: cle,
+      className: "flex items-center justify-between mb-2"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-sm font-bold"
+    }, titre), /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-2"
+    }, [[1, ok], [2, souci]].map(([v, label]) => {
+      const actif = ressentiDuJour[cle] === v;
+      const mauvais = v === 2;
+      return /*#__PURE__*/React.createElement("button", {
+        key: v,
+        onClick: () => enregistrerRessenti(cle, v),
+        className: "pl-tap rounded-xl px-3 text-xs font-bold",
+        style: {
+          height: 38,
+          background: actif ? mauvais ? C.warnBg : C.okBg : C.card2,
+          color: actif ? mauvais ? C.yellowDim : C.green : C.dim,
+          border: `1px solid ${actif ? mauvais ? C.yellow : C.green : C.line}`
+        }
+      }, label);
+    }))))), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs mt-2",
+      style: {
+        color: C.dim
+      }
+    }, "Quelques taps \u2014 c'est ce qui permet plus tard d'expliquer une s\xE9ance faible au lieu de la chercher.")), enDessous && /*#__PURE__*/React.createElement("div", {
+      className: "mt-3 w-full rounded-2xl px-3 py-2.5 text-xs leading-relaxed",
+      style: {
+        maxWidth: 340,
+        background: C.warnBg,
+        border: `1px solid ${C.yellow}`,
+        color: C.yellowDim
+      }
+    }, "S\xE9ance ", Math.round((1 - tonnage / moyenne) * 100), " % en dessous de tes ", s.nom, " habituelles.", soucis.length ? ` Tu as noté : ${soucis.join(", ")} — ça explique sûrement.` : " Rien de noté aujourd'hui : renseigne le contexte au-dessus, ça servira la prochaine fois."), /*#__PURE__*/React.createElement("div", {
       className: "grid grid-cols-3 gap-3 w-full",
       style: {
         maxWidth: 340
