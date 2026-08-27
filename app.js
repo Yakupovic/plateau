@@ -3160,6 +3160,849 @@ const Chip = ({
     border: `1px solid ${active ? C.yellow : C.hair}`
   }
 }, children);
+
+// ═══════════════════════════════════════════════════════════════════
+// SOFRA — le côté cuisine de PLATEAU.
+// Pas un journal alimentaire (abandonné volontairement) : un donneur
+// d'idées. Il regarde la séance du jour et propose quoi manger autour.
+// Contraintes câblées : halal, sel modéré, potassium et phosphore
+// surveillés, pas de pamplemousse ni carambole, rien de cru.
+// ═══════════════════════════════════════════════════════════════════
+
+// L'icône Utensils est déjà définie plus haut dans app.jsx.
+
+// Repères indicatifs, pas des prescriptions. Les bilans sanguins priment.
+const PROT_PAR_KG = 1.2;
+
+// v = vigilance (à ne pas empiler dans la journée), ok = feu vert
+const RECETTES = [
+// ————— Petits-déjeuners —————
+{
+  id: "menemen",
+  nom: "Menemen léger",
+  cat: "petitdej",
+  min: 15,
+  prot: 17,
+  feu: "ok",
+  resume: "Le classique turc, version sans excès de sel.",
+  ing: [["Œufs", "2"], ["Tomate fraîche", "1 moyenne"], ["Poivron vert", "1/2"], ["Huile d'olive", "1 c. à s."], ["Pul biber", "1 pincée"], ["Pain complet", "2 tranches"]],
+  etapes: ["Poivron en dés à la poêle 5 min dans l'huile.", "Tomate pelée en morceaux, 5 min à couvert — pas de concentré, trop de potassium et de sel.", "Œufs battus versés dessus, brouiller à feu doux jusqu'à cuisson complète (pas de baveux).", "Pul biber au moment de servir, à la place du sel."],
+  note: "Tomate fraîche plutôt que concentré : même goût, bien moins de potassium."
+}, {
+  id: "porridge",
+  nom: "Porridge avoine-pomme",
+  cat: "petitdej",
+  min: 10,
+  prot: 14,
+  feu: "v",
+  resume: "Glucides lents avant une séance du matin.",
+  ing: [["Flocons d'avoine", "60 g"], ["Lait demi-écrémé", "180 ml"], ["Pomme", "1"], ["Cannelle", "1 pincée"], ["Miel", "1 c. à c."]],
+  etapes: ["Flocons + lait, 4 min à feu doux en remuant.", "Pomme en dés ajoutée en fin de cuisson.", "Cannelle et miel hors du feu."],
+  note: "Compte-le dans ton quota laitage de la journée (phosphore)."
+}, {
+  id: "tartines",
+  nom: "Tartines œuf dur & concombre",
+  cat: "petitdej",
+  min: 12,
+  prot: 18,
+  feu: "ok",
+  resume: "Rapide, rassasiant, zéro cuisson compliquée.",
+  ing: [["Œufs", "2"], ["Pain complet", "2 tranches"], ["Concombre", "1/2"], ["Sumac", "1 pincée"], ["Huile d'olive", "1 filet"]],
+  etapes: ["Œufs 9 min à l'eau bouillante — jaune bien pris.", "Pain grillé, concombre en rondelles dessus.", "Œufs écrasés à la fourchette, sumac et filet d'huile."],
+  note: "Le sumac remplace le sel et donne l'acidité."
+}, {
+  id: "skyr",
+  nom: "Bol skyr, flocons & myrtilles",
+  cat: "petitdej",
+  min: 5,
+  prot: 22,
+  feu: "v",
+  resume: "Le plus protéiné des petits-déjs sans cuisson.",
+  ing: [["Skyr ou fromage blanc", "150 g"], ["Flocons d'avoine", "30 g"], ["Myrtilles", "80 g"], ["Miel", "1 c. à c."]],
+  etapes: ["Tout mélanger dans un bol.", "Laisser 5 min pour que les flocons s'attendrissent."],
+  note: "Un seul gros laitage par jour : si tu prends ça le matin, allège le soir."
+}, {
+  id: "omelette-epinards",
+  nom: "Omelette épinards",
+  cat: "petitdej",
+  min: 12,
+  prot: 20,
+  feu: "ok",
+  resume: "Protéines franches, digestion facile.",
+  ing: [["Œufs", "3 (dont 1 jaune retiré)"], ["Épinards cuits", "100 g"], ["Huile d'olive", "1 c. à s."], ["Poivre, cumin", "au goût"]],
+  etapes: ["Épinards bien égouttés, réchauffés à la poêle.", "Œufs battus versés dessus, cuisson complète à feu moyen.", "Poivre et cumin, pas de sel ajouté."],
+  note: "Épinards toujours cuits, jamais crus en salade."
+},
+// ————— Post-séance —————
+{
+  id: "poulet-riz",
+  nom: "Poulet citron-cumin & riz",
+  cat: "post",
+  min: 25,
+  prot: 40,
+  feu: "ok",
+  resume: "Le repas d'après-séance par défaut. Simple, efficace.",
+  ing: [["Blanc de poulet halal", "150 g"], ["Riz basmati", "70 g cru"], ["Citron", "1/2"], ["Cumin, paprika doux", "1 c. à c."], ["Huile d'olive", "1 c. à s."], ["Courgette", "1"]],
+  etapes: ["Poulet en lanières mariné 10 min dans citron, cumin, paprika, huile.", "Riz à l'eau non salée, 11 min.", "Poulet à la poêle bien chaude 8-10 min, cœur blanc à la coupe.", "Courgette en rondelles ajoutée les 5 dernières minutes."],
+  note: "À manger dans les 2 h après la séance, avec le riz : glucides + protéines ensemble."
+}, {
+  id: "durum",
+  nom: "Dürüm poulet, sauce yaourt-menthe",
+  cat: "post",
+  min: 20,
+  prot: 34,
+  feu: "v",
+  resume: "Le kebab maison, sans la sauce industrielle.",
+  ing: [["Blanc de poulet halal", "140 g"], ["Galette à dürüm", "1"], ["Yaourt nature", "3 c. à s."], ["Menthe séchée", "1 c. à c."], ["Ail", "1/2 gousse"], ["Laitue, concombre", "à volonté"]],
+  etapes: ["Poulet en lanières, poêle bien chaude, cuisson à cœur.", "Yaourt + menthe + ail écrasé = la sauce, aucun sel.", "Garnir la galette, rouler serré."],
+  note: "Salade lavée soigneusement à l'eau vinaigrée — immunosuppresseurs obligent."
+}, {
+  id: "kofte-boulgour",
+  nom: "Köfte au four & boulgour",
+  cat: "post",
+  min: 35,
+  prot: 33,
+  feu: "ok",
+  resume: "Version four : moins de gras, même goût.",
+  ing: [["Bœuf haché halal 5 %", "150 g"], ["Boulgour", "70 g cru"], ["Oignon", "1/2"], ["Persil", "1 poignée"], ["Cumin, poivre", "1 c. à c."], ["Chapelure", "1 c. à s."]],
+  etapes: ["Mélanger viande, oignon râpé, persil, épices, chapelure.", "Former 5-6 boulettes, four 200 °C, 18 min, bien cuites à cœur.", "Boulgour gonflé 15 min dans l'eau chaude non salée."],
+  note: "Haché toujours à cuisson complète, jamais rosé."
+}, {
+  id: "thon-pain",
+  nom: "Sandwich thon-concombre",
+  cat: "post",
+  min: 8,
+  prot: 29,
+  feu: "v",
+  resume: "Quand tu rentres de la salle et que t'as rien de prêt.",
+  ing: [["Thon au naturel", "1 boîte égouttée"], ["Pain complet", "2 tranches"], ["Concombre", "1/2"], ["Yaourt nature", "1 c. à s."], ["Citron, poivre", "au goût"]],
+  etapes: ["Thon rincé et bien égoutté — ça enlève une bonne part du sel.", "Écrasé avec le yaourt, citron, poivre.", "Concombre en rondelles, montage direct."],
+  note: "Une boîte, pas deux : le thon en conserve reste salé."
+}, {
+  id: "smoothie",
+  nom: "Smoothie avoine-pomme",
+  cat: "post",
+  min: 5,
+  prot: 15,
+  feu: "v",
+  resume: "Le shaker maison — pas de whey, feu vert néphro non obtenu.",
+  ing: [["Lait demi-écrémé", "250 ml"], ["Flocons d'avoine", "40 g"], ["Pomme", "1"], ["Miel", "1 c. à c."], ["Cannelle", "1 pincée"]],
+  etapes: ["Tout au blender 45 s.", "Boire dans la foulée de la séance."],
+  note: "Pas de banane ici : potassium. La pomme fait le même boulot en douceur."
+},
+// ————— Déjeuners —————
+{
+  id: "poulet-four",
+  nom: "Poulet rôti & légumes du four",
+  cat: "dej",
+  min: 45,
+  prot: 38,
+  feu: "ok",
+  resume: "Une plaque, un four, rien à surveiller.",
+  ing: [["Cuisse ou blanc de poulet halal", "180 g"], ["Courgette", "1"], ["Poivron", "1"], ["Carotte", "1"], ["Huile d'olive", "2 c. à s."], ["Thym, ail, paprika", "au goût"]],
+  etapes: ["Légumes en gros morceaux sur la plaque, huile et épices.", "Poulet posé dessus, four 200 °C, 35-40 min.", "Vérifier que le jus qui sort est clair avant de servir."],
+  note: "Doubler les quantités : ça fait le repas du lendemain."
+}, {
+  id: "pates-dinde",
+  nom: "Pâtes complètes à la dinde",
+  cat: "dej",
+  min: 25,
+  prot: 36,
+  feu: "ok",
+  resume: "Sauce tomate fraîche, pas de concentré.",
+  ing: [["Dinde hachée halal", "150 g"], ["Pâtes complètes", "80 g cru"], ["Tomates fraîches", "3"], ["Oignon", "1/2"], ["Origan, ail", "au goût"], ["Huile d'olive", "1 c. à s."]],
+  etapes: ["Oignon et ail revenus, dinde émiettée jusqu'à cuisson complète.", "Tomates pelées en dés, 15 min à découvert pour réduire.", "Pâtes cuites à l'eau non salée, mélangées à la sauce."],
+  note: "Réduire les tomates fraîches donne le goût du concentré sans son potassium."
+}, {
+  id: "pilav-dinde",
+  nom: "Pilav & escalope de dinde",
+  cat: "dej",
+  min: 25,
+  prot: 37,
+  feu: "ok",
+  resume: "Riz pilaf turc, escalope citronnée.",
+  ing: [["Escalope de dinde halal", "160 g"], ["Riz", "70 g cru"], ["Vermicelles", "1 c. à s."], ["Beurre", "1 noisette"], ["Citron", "1/2"], ["Laitue, concombre", "à volonté"]],
+  etapes: ["Vermicelles dorés au beurre, riz ajouté, eau à hauteur, 12 min à couvert.", "Escalope à la poêle 4 min par face, citron en fin.", "Salade lavée à part, vinaigrette citron-huile d'olive."],
+  note: "Riz rincé avant cuisson : moins d'amidon, meilleure texture."
+}, {
+  id: "karniyarik",
+  nom: "Karnıyarık allégé",
+  cat: "dej",
+  min: 50,
+  prot: 30,
+  feu: "ok",
+  resume: "Aubergine farcie au four au lieu de la friture.",
+  ing: [["Aubergines", "2"], ["Bœuf haché halal 5 %", "150 g"], ["Oignon", "1"], ["Tomate fraîche", "1"], ["Persil", "1 poignée"], ["Huile d'olive", "2 c. à s."]],
+  etapes: ["Aubergines coupées en deux, badigeonnées d'huile, four 200 °C 20 min.", "Viande revenue avec oignon et persil, cuisson complète.", "Creuser, farcir, tomate en rondelles dessus, 20 min de plus au four."],
+  note: "Au four, l'aubergine boit trois fois moins d'huile qu'à la poêle."
+}, {
+  id: "cabillaud",
+  nom: "Cabillaud citron-persil & riz",
+  cat: "dej",
+  min: 25,
+  prot: 34,
+  feu: "ok",
+  resume: "Poisson blanc : léger en phosphore comparé aux poissons gras.",
+  ing: [["Dos de cabillaud", "180 g"], ["Riz", "70 g cru"], ["Citron", "1"], ["Persil", "1 poignée"], ["Huile d'olive", "1 c. à s."], ["Haricots verts", "150 g"]],
+  etapes: ["Poisson en papillote avec citron, persil, huile.", "Four 190 °C, 18 min — chair opaque qui se détache.", "Riz et haricots verts à l'eau non salée."],
+  note: "Poisson toujours bien cuit, jamais mi-cuit ni fumé à froid."
+}, {
+  id: "mercimek",
+  nom: "Soupe mercimek (portion mesurée)",
+  cat: "dej",
+  min: 30,
+  prot: 18,
+  feu: "v",
+  resume: "La soupe de lentilles corail, en portion contrôlée.",
+  ing: [["Lentilles corail", "60 g"], ["Carotte", "1"], ["Oignon", "1/2"], ["Cumin, menthe séchée", "1 c. à c."], ["Huile d'olive", "1 c. à s."], ["Citron", "1/2"]],
+  etapes: ["Lentilles rincées et trempées 30 min, eau jetée — ça retire du potassium.", "Oignon et carotte revenus, lentilles ajoutées, eau, 20 min.", "Mixer, cumin et menthe, citron au moment de servir."],
+  note: "60 g de lentilles sèches, pas plus, et jamais deux jours de suite."
+}, {
+  id: "taboule",
+  nom: "Taboulé boulgour & poulet grillé",
+  cat: "dej",
+  min: 20,
+  prot: 32,
+  feu: "ok",
+  resume: "Frais, transportable au bureau.",
+  ing: [["Boulgour fin", "70 g"], ["Blanc de poulet halal", "140 g"], ["Persil, menthe", "1 gros bouquet"], ["Concombre", "1/2"], ["Citron", "1"], ["Huile d'olive", "2 c. à s."]],
+  etapes: ["Boulgour gonflé 20 min dans l'eau chaude, égoutté.", "Poulet grillé, refroidi, coupé en dés.", "Herbes hachées, concombre, citron, huile — tout mélanger."],
+  note: "Une boîte pour le lendemain se garde bien au frais 24 h max."
+},
+// ————— Dîners —————
+{
+  id: "oeufs-cocotte",
+  nom: "Œufs cocotte aux épinards",
+  cat: "diner",
+  min: 20,
+  prot: 21,
+  feu: "ok",
+  resume: "Léger le soir sans sacrifier les protéines.",
+  ing: [["Œufs", "2"], ["Épinards", "150 g"], ["Crème légère", "1 c. à s."], ["Muscade, poivre", "au goût"], ["Pain complet", "1 tranche"]],
+  etapes: ["Épinards fondus à la poêle, égouttés.", "Répartis dans un ramequin, œufs cassés dessus, crème.", "Four 180 °C 14 min : blanc pris, jaune ferme."],
+  note: "Blanc ET jaune bien pris — pas d'œuf coulant."
+}, {
+  id: "poulet-poivrons",
+  nom: "Sauté poulet-poivrons & boulgour",
+  cat: "diner",
+  min: 25,
+  prot: 35,
+  feu: "ok",
+  resume: "Une poêle, dix minutes de cuisson.",
+  ing: [["Blanc de poulet halal", "150 g"], ["Poivrons", "2"], ["Oignon", "1/2"], ["Boulgour", "60 g cru"], ["Sumac, pul biber", "au goût"], ["Huile d'olive", "1 c. à s."]],
+  etapes: ["Poulet saisi à feu vif, réservé.", "Poivrons et oignon 8 min, poulet remis, épices.", "Boulgour gonflé à part, servi dessous."],
+  note: "Sumac + pul biber : le duo qui te fait oublier la salière."
+}, {
+  id: "omelette-salade",
+  nom: "Omelette turque & salade",
+  cat: "diner",
+  min: 15,
+  prot: 19,
+  feu: "ok",
+  resume: "Le dîner de secours quand la journée a été longue.",
+  ing: [["Œufs", "3"], ["Persil", "1 poignée"], ["Oignon nouveau", "1"], ["Laitue, concombre, tomate", "à volonté"], ["Citron, huile d'olive", "pour la salade"]],
+  etapes: ["Œufs battus avec persil et oignon haché.", "Poêle huilée, feu moyen, 4 min par face.", "Salade lavée soigneusement, assaisonnée au citron."],
+  note: "Assaisonner au citron plutôt qu'au vinaigre balsamique (souvent salé/sucré)."
+}, {
+  id: "pide",
+  nom: "Pide maison viande hachée",
+  cat: "diner",
+  min: 35,
+  prot: 31,
+  feu: "ok",
+  resume: "Le plaisir du samedi soir, fait maison.",
+  ing: [["Pâte à pizza", "1 rouleau"], ["Bœuf haché halal 5 %", "150 g"], ["Oignon", "1/2"], ["Poivron", "1/2"], ["Tomate fraîche", "1"], ["Persil, cumin", "au goût"]],
+  etapes: ["Viande revenue avec oignon, poivron, tomate — cuisson complète.", "Pâte étalée en barque, garniture au centre, bords repliés.", "Four 220 °C, 15 min."],
+  note: "Sans fromage ajouté : la garniture suffit et le phosphore reste bas."
+}, {
+  id: "dinde-haricots",
+  nom: "Dinde aux haricots verts",
+  cat: "diner",
+  min: 25,
+  prot: 36,
+  feu: "ok",
+  resume: "Léger, protéiné, prêt en une poêle.",
+  ing: [["Escalope de dinde halal", "160 g"], ["Haricots verts", "200 g"], ["Ail", "1 gousse"], ["Riz", "50 g cru"], ["Citron, poivre", "au goût"]],
+  etapes: ["Haricots cuits 12 min à l'eau non salée.", "Dinde en lanières saisie avec l'ail.", "Haricots ajoutés 3 min, citron au moment de servir."],
+  note: "Haricots verts : un des légumes les plus doux en potassium."
+}, {
+  id: "yogurtlu",
+  nom: "Bol de riz yoğurtlu au poulet",
+  cat: "diner",
+  min: 20,
+  prot: 33,
+  feu: "v",
+  resume: "Riz, poulet, yaourt à l'ail — le confort turc.",
+  ing: [["Blanc de poulet halal", "140 g"], ["Riz", "70 g cru"], ["Yaourt nature", "100 g"], ["Ail", "1/2 gousse"], ["Menthe séchée", "1 c. à c."], ["Beurre", "1 noisette"]],
+  etapes: ["Riz cuit à l'eau non salée.", "Poulet en dés saisi à la poêle.", "Yaourt battu avec ail et menthe, nappé sur le bol."],
+  note: "Ton laitage du jour : évite d'en reprendre au petit-déj."
+},
+// ————— Collations —————
+{
+  id: "yaourt-miel",
+  nom: "Yaourt, miel & flocons",
+  cat: "collation",
+  min: 3,
+  prot: 10,
+  feu: "v",
+  resume: "La collation d'après-midi, deux minutes.",
+  ing: [["Yaourt nature", "125 g"], ["Miel", "1 c. à c."], ["Flocons d'avoine", "20 g"]],
+  etapes: ["Mélanger, manger."],
+  note: "Compte-le dans le quota laitage."
+}, {
+  id: "pomme-amandes",
+  nom: "Pomme & poignée d'amandes",
+  cat: "collation",
+  min: 1,
+  prot: 6,
+  feu: "v",
+  resume: "Le snack de sac, sans emballage industriel.",
+  ing: [["Pomme", "1"], ["Amandes non salées", "5-6"]],
+  etapes: ["Rien à faire."],
+  note: "5-6 amandes, pas la poignée entière : les oléagineux montent vite en phosphore."
+}, {
+  id: "oeuf-pain",
+  nom: "Œuf dur & pain complet",
+  cat: "collation",
+  min: 10,
+  prot: 12,
+  feu: "ok",
+  resume: "Protéines pures avant une séance de fin de journée.",
+  ing: [["Œuf", "1"], ["Pain complet", "1 tranche"], ["Sumac", "1 pincée"]],
+  etapes: ["Œuf 9 min à l'eau bouillante.", "Écrasé sur le pain grillé, sumac dessus."],
+  note: "À prendre 1 h 30 avant la salle, pas juste avant."
+}, {
+  id: "sutlac",
+  nom: "Sütlaç maison",
+  cat: "collation",
+  min: 30,
+  prot: 9,
+  feu: "v",
+  resume: "Le riz au lait turc, sucré raisonnablement.",
+  ing: [["Riz rond", "40 g"], ["Lait", "300 ml"], ["Sucre", "1 c. à s."], ["Cannelle", "au goût"]],
+  etapes: ["Riz précuit 10 min à l'eau.", "Lait ajouté, feu doux 20 min en remuant.", "Sucre en fin de cuisson, cannelle au service."],
+  note: "Une portion, et c'est ton laitage du jour."
+}, {
+  id: "toast-cacahuete",
+  nom: "Toast beurre de cacahuète",
+  cat: "collation",
+  min: 3,
+  prot: 9,
+  feu: "v",
+  resume: "Calories denses quand la prise de poids stagne.",
+  ing: [["Pain complet", "1 tranche"], ["Beurre de cacahuète sans sel ajouté", "1 c. à s."], ["Pomme", "1/2"]],
+  etapes: ["Tartiner, poser les lamelles de pomme dessus."],
+  note: "Vérifie l'étiquette : beaucoup de marques ajoutent sel et huile de palme."
+}];
+const SOFRA_CATS = [{
+  id: "tout",
+  label: "Tout"
+}, {
+  id: "petitdej",
+  label: "Petit-déj"
+}, {
+  id: "dej",
+  label: "Déjeuner"
+}, {
+  id: "diner",
+  label: "Dîner"
+}, {
+  id: "post",
+  label: "Post-séance"
+}, {
+  id: "collation",
+  label: "Collation"
+}];
+const SOFRA_CAT_LABEL = {
+  petitdej: "Petit-déj",
+  dej: "Déjeuner",
+  diner: "Dîner",
+  post: "Post-séance",
+  collation: "Collation"
+};
+const sansAccent = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const recettesDe = cat => RECETTES.filter(r => r.cat === cat);
+// Rotation stable dans la journée : même idée toute la journée, nouvelle demain.
+const jourIndex = () => Math.floor(new Date(todayISO()).getTime() / 86400000);
+const piocher = (cat, offset) => {
+  const l = recettesDe(cat);
+  return l[((jourIndex() + offset) % l.length + l.length) % l.length];
+};
+
+// Le plan du jour dépend de la séance conseillée par PLATEAU.
+const planDuJour = (conseil, faitAujourdhui) => {
+  if (faitAujourdhui) {
+    return {
+      titre: "Séance faite aujourd'hui",
+      sous: "Priorité : reconstituer. Glucides + protéines dans les 2 h, puis un dîner normal.",
+      slots: [{
+        cat: "post",
+        label: "Après la séance"
+      }, {
+        cat: "diner",
+        label: "Le soir"
+      }, {
+        cat: "collation",
+        label: "Si petite faim"
+      }]
+    };
+  }
+  if (conseil && conseil.type === "repos") {
+    return {
+      titre: "Jour de repos",
+      sous: "Pas de séance : on garde les protéines, on allège les glucides.",
+      slots: [{
+        cat: "petitdej",
+        label: "Ce matin"
+      }, {
+        cat: "dej",
+        label: "Ce midi"
+      }, {
+        cat: "diner",
+        label: "Ce soir"
+      }]
+    };
+  }
+  const t = conseil && conseil.titre || "Séance";
+  const gros = t === "Jambes";
+  return {
+    titre: `Jour ${t}`,
+    sous: gros ? "Grosse séance : charge en glucides au repas d'avant, tu vas en avoir besoin." : "Repas d'avant digeste, le gros des glucides après la séance.",
+    slots: [{
+      cat: "petitdej",
+      label: "Ce matin"
+    }, {
+      cat: "collation",
+      label: "1 h 30 avant la salle"
+    }, {
+      cat: "post",
+      label: "Après la séance"
+    }]
+  };
+};
+const SOFRA_REPERES = [{
+  t: "Les règles d'or",
+  ic: "⭐",
+  l: ["Pas de pamplemousse ni de carambole, sous aucune forme (jus compris).", "Rien de cru côté viande, œuf, poisson : tout à cuisson complète.", "Fromages au lait pasteurisé uniquement.", "Salade et fruits lavés soigneusement avant de les manger."]
+}, {
+  t: "Le sel",
+  ic: "🧂",
+  l: ["Le sel caché est ailleurs : conserves, plats préparés, charcuterie, pain industriel, bouillon cube.", "Sumac, pul biber, cumin, menthe séchée, citron : c'est ce qui remplace la salière sans frustration.", "Rincer le thon ou les légumes en conserve enlève une bonne part du sodium.", "L'ayran est très salé — plaisir occasionnel, pas boisson quotidienne."]
+}, {
+  t: "Le potassium",
+  ic: "🍌",
+  l: ["À surveiller : banane, concentré de tomate, fruits secs, avocat, légumineuses en grande quantité.", "Pommes de terre : couper en morceaux, tremper 2 h, puis cuire dans une eau qu'on jette.", "Les légumineuses se trempent et l'eau de trempage se jette.", "Pomme, poire, myrtilles, haricots verts, courgette : les alternatives douces."]
+}, {
+  t: "Le phosphore",
+  ic: "🥛",
+  l: ["Un gros laitage par jour suffit — pas skyr le matin ET yaourt le soir.", "Les additifs à éviter : E338 à E343, E450 à E452 (sodas, fromages fondus, viandes industrielles).", "Le phosphore des additifs s'absorbe presque entièrement, celui des aliments beaucoup moins.", "Oléagineux : une petite poignée, pas le paquet."]
+}, {
+  t: "Muscu & protéines",
+  ic: "💪",
+  l: ["Ton repère est 1,2 g par kilo et par jour, réparti sur les repas — pas empilé au dîner.", "Pas de whey ni de protéine en poudre sans feu vert de ton néphrologue.", "Les glucides autour de la séance font autant pour la prise de masse que les protéines.", "Prendre du poids se joue sur les calories totales : c'est souvent le petit-déj et la collation qui manquent."]
+}, {
+  t: "Ce que ça ne remplace pas",
+  ic: "🩺",
+  l: ["Ces repères sont indicatifs et volontairement prudents.", "Tes bilans sanguins et l'avis de ton néphrologue passent avant tout ce qui est écrit ici.", "Un changement d'alimentation qui vise la prise de masse se signale en consultation."]
+}];
+
+// ————— L'onglet —————
+const SofraTab = ({
+  data,
+  saveData,
+  poidsCorps,
+  conseil,
+  faitAujourdhui
+}) => {
+  const [vue, setVue] = useState("jour");
+  const [cat, setCat] = useState("tout");
+  const [q, setQ] = useState("");
+  const [ouverte, setOuverte] = useState(null);
+  const [decal, setDecal] = useState({});
+  const sofra = data.sofra || {
+    courses: [],
+    faits: []
+  };
+  const majSofra = patch => saveData({
+    ...data,
+    sofra: {
+      ...sofra,
+      ...patch
+    }
+  });
+  const objProt = Math.round(poidsCorps * PROT_PAR_KG);
+  const plan = planDuJour(conseil, faitAujourdhui);
+  const ajouterCourses = r => {
+    const nouv = r.ing.map(i => `${i[0]} — ${i[1]}`).filter(x => sofra.courses.indexOf(x) === -1);
+    majSofra({
+      courses: [...sofra.courses, ...nouv]
+    });
+  };
+  const basculerFait = item => {
+    const faits = sofra.faits || [];
+    majSofra({
+      faits: faits.indexOf(item) === -1 ? [...faits, item] : faits.filter(x => x !== item)
+    });
+  };
+  const liste = RECETTES.filter(r => {
+    if (cat !== "tout" && r.cat !== cat) return false;
+    if (!q.trim()) return true;
+    const t = sansAccent(q);
+    return sansAccent(r.nom).indexOf(t) !== -1 || r.ing.some(i => sansAccent(i[0]).indexOf(t) !== -1);
+  });
+  const CarteRecette = ({
+    r,
+    label
+  }) => /*#__PURE__*/React.createElement(Card, {
+    onClick: () => setOuverte(r.id),
+    style: {
+      cursor: "pointer"
+    }
+  }, label && /*#__PURE__*/React.createElement("div", {
+    className: "text-xs font-bold mb-1",
+    style: {
+      color: C.yellowDim
+    }
+  }, label), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-start justify-between gap-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-bold",
+    style: {
+      fontSize: 17
+    }
+  }, r.nom), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm mt-0.5",
+    style: {
+      color: C.dim
+    }
+  }, r.resume)), /*#__PURE__*/React.createElement("div", {
+    className: "text-right shrink-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-black",
+    style: {
+      ...DISPLAY,
+      ...NUMS,
+      fontSize: 20,
+      color: C.yellowDim
+    }
+  }, r.prot, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12
+    }
+  }, " g")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: C.dim
+    }
+  }, "prot\xE9ines"))), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 mt-2",
+    style: {
+      fontSize: 11,
+      color: C.dim
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "\u23F1 ", r.min, " min"), /*#__PURE__*/React.createElement("span", null, "\xB7"), /*#__PURE__*/React.createElement("span", null, SOFRA_CAT_LABEL[r.cat]), r.feu === "v" && /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.amber
+    }
+  }, "\xB7 \u26A0\uFE0F \xE0 compter dans la journ\xE9e")));
+  const rec = ouverte ? RECETTES.find(x => x.id === ouverte) : null;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3 pl-anim"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 overflow-x-auto pb-1",
+    style: {
+      scrollbarWidth: "none"
+    }
+  }, /*#__PURE__*/React.createElement(Chip, {
+    active: vue === "jour",
+    onClick: () => setVue("jour")
+  }, "Aujourd'hui"), /*#__PURE__*/React.createElement(Chip, {
+    active: vue === "recettes",
+    onClick: () => setVue("recettes")
+  }, "Recettes"), /*#__PURE__*/React.createElement(Chip, {
+    active: vue === "courses",
+    onClick: () => setVue("courses")
+  }, "Courses", sofra.courses.length ? ` (${sofra.courses.length})` : ""), /*#__PURE__*/React.createElement(Chip, {
+    active: vue === "reperes",
+    onClick: () => setVue("reperes")
+  }, "Rep\xE8res")), vue === "jour" && /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3"
+  }, /*#__PURE__*/React.createElement(Card, {
+    style: {
+      background: C.cardGrad
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-black",
+    style: {
+      ...DISPLAY,
+      fontSize: 24
+    }
+  }, plan.titre), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm mt-1",
+    style: {
+      color: C.dim
+    }
+  }, plan.sous), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 mt-3 pt-3",
+    style: {
+      borderTop: `1px solid ${C.line}`
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 18
+    }
+  }, "\uD83C\uDFAF"), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm"
+  }, "Rep\xE8re du jour : ", /*#__PURE__*/React.createElement("b", {
+    style: NUMS
+  }, objProt, " g"), " de prot\xE9ines r\xE9parties sur la journ\xE9e", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.dim
+    }
+  }, " (", poidsCorps, " kg \xD7 1,2)")))), plan.slots.map((s, i) => {
+    const r = piocher(s.cat, decal[s.cat + i] || 0);
+    return /*#__PURE__*/React.createElement("div", {
+      key: s.cat + i
+    }, /*#__PURE__*/React.createElement(CarteRecette, {
+      r: r,
+      label: s.label
+    }), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setDecal({
+        ...decal,
+        [s.cat + i]: (decal[s.cat + i] || 0) + 1
+      }),
+      className: "pl-tap w-full rounded-xl py-2 mt-1.5 text-sm font-semibold",
+      style: {
+        background: C.card2,
+        color: C.dim,
+        border: `1px solid ${C.hair}`
+      }
+    }, "\uD83C\uDFB2 Une autre id\xE9e"));
+  }), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm",
+    style: {
+      color: C.dim
+    }
+  }, "Sofra ne compte pas ce que tu manges \u2014 il propose. Les id\xE9es suivent la s\xE9ance conseill\xE9e par PLATEAU et changent chaque jour."))), vue === "recettes" && /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3"
+  }, /*#__PURE__*/React.createElement("input", {
+    value: q,
+    onChange: e => setQ(e.target.value),
+    placeholder: "Chercher une recette ou un ingr\xE9dient\u2026",
+    className: "w-full rounded-xl px-3 py-3",
+    style: {
+      background: C.card,
+      border: `1px solid ${C.line}`,
+      color: C.text
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 overflow-x-auto pb-1",
+    style: {
+      scrollbarWidth: "none"
+    }
+  }, SOFRA_CATS.map(c => /*#__PURE__*/React.createElement(Chip, {
+    key: c.id,
+    active: cat === c.id,
+    onClick: () => setCat(c.id)
+  }, c.label))), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs",
+    style: {
+      color: C.dim
+    }
+  }, liste.length, " recette", liste.length > 1 ? "s" : ""), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, liste.map(r => /*#__PURE__*/React.createElement(CarteRecette, {
+    key: r.id,
+    r: r
+  })), !liste.length && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm",
+    style: {
+      color: C.dim
+    }
+  }, "Rien ne correspond. Essaie un autre mot.")))), vue === "courses" && /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3"
+  }, !sofra.courses.length && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+    className: "font-bold mb-1"
+  }, "Liste vide"), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm",
+    style: {
+      color: C.dim
+    }
+  }, "Ouvre une recette et touche \xAB Ajouter aux courses \xBB : les ingr\xE9dients arrivent ici.")), sofra.courses.map(item => {
+    const fait = (sofra.faits || []).indexOf(item) !== -1;
+    return /*#__PURE__*/React.createElement("div", {
+      key: item,
+      className: "flex items-center gap-3 rounded-xl px-3 py-3",
+      style: {
+        background: C.card,
+        border: `1px solid ${C.line}`
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => basculerFait(item),
+      className: "pl-tap shrink-0 rounded-lg",
+      style: {
+        width: 26,
+        height: 26,
+        border: `2px solid ${fait ? C.green : C.line}`,
+        background: fait ? C.green : "transparent",
+        color: C.onGreen,
+        fontWeight: 900
+      }
+    }, fait ? "✓" : ""), /*#__PURE__*/React.createElement("div", {
+      className: "flex-1 text-sm",
+      style: {
+        textDecoration: fait ? "line-through" : "none",
+        color: fait ? C.dim : C.text
+      }
+    }, item), /*#__PURE__*/React.createElement("button", {
+      onClick: () => majSofra({
+        courses: sofra.courses.filter(x => x !== item),
+        faits: (sofra.faits || []).filter(x => x !== item)
+      }),
+      className: "pl-tap px-2",
+      style: {
+        color: C.dim
+      }
+    }, "\u2715"));
+  }), sofra.courses.length > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => majSofra({
+      courses: [],
+      faits: []
+    }),
+    className: "pl-tap w-full rounded-xl py-3 font-semibold",
+    style: {
+      background: C.card2,
+      color: C.red,
+      border: `1px solid ${C.hair}`
+    }
+  }, "Vider la liste")), vue === "reperes" && /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3"
+  }, SOFRA_REPERES.map(b => /*#__PURE__*/React.createElement(Card, {
+    key: b.t
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-bold mb-2",
+    style: {
+      fontSize: 17
+    }
+  }, b.ic, " ", b.t), /*#__PURE__*/React.createElement("ul", {
+    className: "space-y-1.5"
+  }, b.l.map((x, i) => /*#__PURE__*/React.createElement("li", {
+    key: i,
+    className: "text-sm flex gap-2",
+    style: {
+      color: C.dim
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.yellowDim
+    }
+  }, "\u2014"), /*#__PURE__*/React.createElement("span", null, x))))))), rec && /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-50 overflow-y-auto",
+    style: {
+      background: C.bgAlt
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mx-auto p-4 pb-24",
+    style: {
+      maxWidth: "28rem"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setOuverte(null),
+    className: "pl-tap mb-3 rounded-xl px-3 py-2 font-semibold",
+    style: {
+      background: C.card2,
+      color: C.text,
+      border: `1px solid ${C.hair}`
+    }
+  }, "\u2190 Retour"), /*#__PURE__*/React.createElement("div", {
+    className: "font-black",
+    style: {
+      ...DISPLAY,
+      fontSize: 27,
+      lineHeight: 1.1
+    }
+  }, rec.nom), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm mt-1",
+    style: {
+      color: C.dim
+    }
+  }, rec.resume), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mt-3"
+  }, [[rec.prot + " g", "protéines"], [rec.min + " min", "préparation"], [SOFRA_CAT_LABEL[rec.cat], "moment"]].map(([v, l]) => /*#__PURE__*/React.createElement("div", {
+    key: l,
+    className: "flex-1 rounded-xl px-2 py-2 text-center",
+    style: {
+      background: C.card,
+      border: `1px solid ${C.line}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-black",
+    style: {
+      ...NUMS,
+      fontSize: 15
+    }
+  }, v), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: C.dim
+    }
+  }, l)))), /*#__PURE__*/React.createElement(Card, {
+    className: "mt-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-bold mb-2"
+  }, "Ingr\xE9dients"), rec.ing.map(i => /*#__PURE__*/React.createElement("div", {
+    key: i[0],
+    className: "flex justify-between text-sm py-1",
+    style: {
+      borderBottom: `1px solid ${C.hair}`
+    }
+  }, /*#__PURE__*/React.createElement("span", null, i[0]), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.dim,
+      ...NUMS
+    }
+  }, i[1]))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      ajouterCourses(rec);
+      setOuverte(null);
+      setVue("courses");
+    },
+    className: "pl-tap w-full rounded-xl py-3 mt-3 font-bold",
+    style: {
+      background: C.yellow,
+      color: C.onYellow
+    }
+  }, "Ajouter aux courses")), /*#__PURE__*/React.createElement(Card, {
+    className: "mt-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-bold mb-2"
+  }, "Pr\xE9paration"), /*#__PURE__*/React.createElement("ol", {
+    className: "space-y-2"
+  }, rec.etapes.map((e, i) => /*#__PURE__*/React.createElement("li", {
+    key: i,
+    className: "text-sm flex gap-2.5"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "shrink-0 rounded-lg text-center font-black",
+    style: {
+      width: 22,
+      height: 22,
+      lineHeight: "22px",
+      background: C.card2,
+      color: C.yellowDim,
+      fontSize: 12
+    }
+  }, i + 1), /*#__PURE__*/React.createElement("span", null, e))))), rec.note && /*#__PURE__*/React.createElement(Card, {
+    className: "mt-3",
+    style: {
+      background: C.warnBg,
+      border: `1px solid ${C.line}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm"
+  }, /*#__PURE__*/React.createElement("b", null, "\xC0 savoir \u2014 "), rec.note)))));
+};
 const Stepper = ({
   label,
   value,
@@ -8944,7 +9787,13 @@ function App() {
     }, /*#__PURE__*/React.createElement(Trash2, {
       size: 12
     }), " Supprimer"))));
-  })), tab === "progression" && /*#__PURE__*/React.createElement("div", {
+  })), tab === "sofra" && /*#__PURE__*/React.createElement(SofraTab, {
+    data: data,
+    saveData: saveData,
+    poidsCorps: poidsCorps,
+    conseil: seanceConseillee(data),
+    faitAujourdhui: (data.seances || []).some(s => s.date === todayISO())
+  }), tab === "progression" && /*#__PURE__*/React.createElement("div", {
     className: "space-y-3 pl-anim"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 overflow-x-auto pb-1",
@@ -11307,6 +12156,10 @@ function App() {
     id: "recup",
     label: "Récup",
     Icon: Moon
+  }, {
+    id: "sofra",
+    label: "Sofra",
+    Icon: Utensils
   }, {
     id: "historique",
     label: "Histo",
