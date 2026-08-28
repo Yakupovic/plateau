@@ -2199,6 +2199,889 @@ const SOFRA_REPERES = [
   },
 ];
 
+// ═══════════════════════════════════════════════════════════════════
+// SOFRA — suivi complet : ce que je mange, ce que je bois.
+// Valeurs pour 100 g (ou 100 ml) : [kcal, protéines, glucides, lipides,
+// sodium mg, potassium mg, phosphore mg]. Chiffres indicatifs, arrondis :
+// ils servent à situer un repas, pas à remplacer un bilan sanguin.
+// f = point de vigilance : "k" potassium, "na" sel, "p" phosphore, "add" additifs.
+// ═══════════════════════════════════════════════════════════════════
+
+const NUT_CLES = ["kcal", "prot", "gluc", "lip", "na", "k", "p"];
+const NUT_LABEL = { kcal: "Calories", prot: "Protéines", gluc: "Glucides", lip: "Lipides", na: "Sodium", k: "Potassium", p: "Phosphore", eau: "Liquides" };
+const NUT_UNITE = { kcal: "kcal", prot: "g", gluc: "g", lip: "g", na: "mg", k: "mg", p: "mg", eau: "ml" };
+
+const ALIMENTS = [
+  // ————— Viandes, poissons, œufs —————
+  { id: "poulet-blanc", nom: "Blanc de poulet", cat: "proteines", u: "g", pf: [["1 blanc", 150], ["Portion", 120]], n: [165, 31, 0, 3.6, 70, 340, 220] },
+  { id: "poulet-cuisse", nom: "Cuisse de poulet", cat: "proteines", u: "g", pf: [["1 cuisse", 130]], n: [190, 26, 0, 9, 90, 260, 190] },
+  { id: "dinde", nom: "Escalope de dinde", cat: "proteines", u: "g", pf: [["1 escalope", 130]], n: [135, 30, 0, 1.5, 60, 330, 230] },
+  { id: "boeuf-hache", nom: "Bœuf haché 5 %", cat: "proteines", u: "g", pf: [["Portion", 120]], n: [170, 27, 0, 7, 70, 330, 210] },
+  { id: "agneau", nom: "Agneau", cat: "proteines", u: "g", pf: [["Portion", 120]], n: [235, 26, 0, 14, 70, 290, 190] },
+  { id: "kofte", nom: "Köfte (viande épicée)", cat: "proteines", u: "g", pf: [["1 köfte", 40], ["Portion", 120]], n: [210, 24, 4, 11, 380, 300, 180], f: "na" },
+  { id: "cabillaud", nom: "Cabillaud", cat: "proteines", u: "g", pf: [["1 pavé", 150]], n: [95, 21, 0, 0.8, 90, 400, 210] },
+  { id: "saumon", nom: "Saumon", cat: "proteines", u: "g", pf: [["1 pavé", 130]], n: [210, 23, 0, 13, 60, 380, 250] },
+  { id: "thon-conserve", nom: "Thon au naturel égoutté", cat: "proteines", u: "g", pf: [["1 boîte", 100]], n: [116, 26, 0, 1, 320, 240, 220], f: "na" },
+  { id: "sardine", nom: "Sardine à l'huile égouttée", cat: "proteines", u: "g", pf: [["1 boîte", 90]], n: [220, 25, 0, 13, 400, 400, 430], f: "p" },
+  { id: "oeuf", nom: "Œuf entier", cat: "proteines", u: "g", pf: [["1 œuf", 60], ["2 œufs", 120], ["3 œufs", 180]], n: [145, 13, 0.7, 10, 130, 130, 200] },
+  { id: "blanc-oeuf", nom: "Blanc d'œuf", cat: "proteines", u: "g", pf: [["1 blanc", 33]], n: [48, 11, 0.7, 0.2, 165, 160, 15] },
+
+  // ————— Féculents —————
+  { id: "riz", nom: "Riz cuit", cat: "feculents", u: "g", pf: [["Portion", 200], ["70 g cru", 200]], n: [130, 2.6, 28, 0.3, 1, 35, 45] },
+  { id: "boulgour", nom: "Boulgour cuit", cat: "feculents", u: "g", pf: [["Portion", 180], ["60 g cru", 170]], n: [115, 3.5, 24, 0.3, 5, 70, 70] },
+  { id: "pates-completes", nom: "Pâtes complètes cuites", cat: "feculents", u: "g", pf: [["Portion", 220]], n: [130, 5, 25, 0.9, 3, 60, 100] },
+  { id: "pates", nom: "Pâtes blanches cuites", cat: "feculents", u: "g", pf: [["Portion", 220]], n: [130, 4.5, 26, 0.6, 2, 45, 60] },
+  { id: "semoule", nom: "Semoule cuite", cat: "feculents", u: "g", pf: [["Portion", 180]], n: [115, 3.8, 24, 0.2, 2, 50, 55] },
+  { id: "pdt", nom: "Pomme de terre cuite", cat: "feculents", u: "g", pf: [["1 moyenne", 150]], n: [85, 2, 18, 0.1, 5, 380, 50], f: "k" },
+  { id: "pdt-trempee", nom: "Pomme de terre trempée 2 h puis cuite", cat: "feculents", u: "g", pf: [["1 moyenne", 150]], n: [80, 1.8, 17, 0.1, 4, 230, 45] },
+  { id: "lentilles", nom: "Lentilles cuites", cat: "feculents", u: "g", pf: [["Portion", 150]], n: [115, 9, 17, 0.4, 3, 300, 150], f: "k" },
+  { id: "pois-chiches", nom: "Pois chiches cuits", cat: "feculents", u: "g", pf: [["Portion", 150]], n: [140, 8, 20, 2.4, 6, 260, 140], f: "k" },
+  { id: "haricots-blancs", nom: "Haricots blancs cuits", cat: "feculents", u: "g", pf: [["Portion", 150]], n: [120, 8, 18, 0.5, 4, 320, 130], f: "k" },
+  { id: "avoine", nom: "Flocons d'avoine (cru)", cat: "feculents", u: "g", pf: [["Bol", 60], ["Petite dose", 40]], n: [375, 13, 60, 7, 5, 350, 400], f: "p" },
+  { id: "quinoa", nom: "Quinoa cuit", cat: "feculents", u: "g", pf: [["Portion", 180]], n: [120, 4.4, 21, 1.9, 5, 170, 150] },
+
+  // ————— Pains —————
+  { id: "pain-complet", nom: "Pain complet", cat: "pain", u: "g", pf: [["1 tranche", 35], ["2 tranches", 70]], n: [250, 9, 43, 3, 480, 230, 200], f: "na" },
+  { id: "pain-blanc", nom: "Baguette / pain blanc", cat: "pain", u: "g", pf: [["1/4 baguette", 60]], n: [270, 8, 55, 1.5, 520, 120, 90], f: "na" },
+  { id: "lavash", nom: "Galette dürüm / lavash", cat: "pain", u: "g", pf: [["1 galette", 70]], n: [290, 8, 55, 3.5, 500, 130, 110], f: "na" },
+  { id: "pide-pain", nom: "Pain turc (pide)", cat: "pain", u: "g", pf: [["1/4", 80]], n: [275, 8.5, 53, 2.5, 500, 130, 100], f: "na" },
+  { id: "simit", nom: "Simit", cat: "pain", u: "g", pf: [["1 simit", 100]], n: [320, 10, 55, 6, 500, 160, 130], f: "na" },
+
+  // ————— Légumes —————
+  { id: "courgette", nom: "Courgette cuite", cat: "legumes", u: "g", pf: [["1 courgette", 200]], n: [20, 1.2, 3, 0.3, 3, 250, 40] },
+  { id: "haricots-verts", nom: "Haricots verts cuits", cat: "legumes", u: "g", pf: [["Portion", 200]], n: [30, 1.8, 5, 0.2, 2, 180, 40] },
+  { id: "tomate", nom: "Tomate fraîche", cat: "legumes", u: "g", pf: [["1 moyenne", 120]], n: [18, 0.9, 3.5, 0.2, 5, 240, 24] },
+  { id: "concentre-tomate", nom: "Concentré de tomate", cat: "legumes", u: "g", pf: [["1 c. à s.", 15]], n: [82, 4.3, 15, 0.5, 60, 1000, 80], f: "k" },
+  { id: "poivron", nom: "Poivron", cat: "legumes", u: "g", pf: [["1 poivron", 150]], n: [26, 1, 5, 0.3, 3, 210, 26] },
+  { id: "aubergine", nom: "Aubergine cuite", cat: "legumes", u: "g", pf: [["1 aubergine", 200]], n: [25, 0.9, 4, 0.2, 2, 180, 25] },
+  { id: "carotte", nom: "Carotte cuite", cat: "legumes", u: "g", pf: [["1 carotte", 90]], n: [35, 0.8, 7, 0.2, 40, 230, 30] },
+  { id: "oignon", nom: "Oignon", cat: "legumes", u: "g", pf: [["1/2 oignon", 60]], n: [40, 1.1, 8, 0.1, 4, 150, 30] },
+  { id: "epinards", nom: "Épinards cuits", cat: "legumes", u: "g", pf: [["Portion", 150]], n: [25, 3, 1.5, 0.4, 60, 470, 50], f: "k" },
+  { id: "salade", nom: "Salade verte", cat: "legumes", u: "g", pf: [["Bol", 60]], n: [15, 1.2, 1.5, 0.2, 10, 200, 30] },
+  { id: "concombre", nom: "Concombre", cat: "legumes", u: "g", pf: [["1/2", 150]], n: [12, 0.6, 2, 0.1, 2, 150, 20] },
+  { id: "champignons", nom: "Champignons cuits", cat: "legumes", u: "g", pf: [["Portion", 120]], n: [25, 2.5, 2, 0.4, 5, 280, 90] },
+  { id: "brocoli", nom: "Brocoli cuit", cat: "legumes", u: "g", pf: [["Portion", 150]], n: [30, 2.4, 3, 0.4, 20, 220, 55] },
+
+  // ————— Fruits —————
+  { id: "pomme", nom: "Pomme", cat: "fruits", u: "g", pf: [["1 pomme", 150]], n: [52, 0.3, 12, 0.2, 1, 110, 11] },
+  { id: "poire", nom: "Poire", cat: "fruits", u: "g", pf: [["1 poire", 160]], n: [55, 0.4, 13, 0.1, 1, 120, 12] },
+  { id: "myrtilles", nom: "Myrtilles", cat: "fruits", u: "g", pf: [["Poignée", 80]], n: [57, 0.7, 12, 0.3, 1, 77, 12] },
+  { id: "fraises", nom: "Fraises", cat: "fruits", u: "g", pf: [["Bol", 150]], n: [33, 0.7, 6, 0.3, 1, 150, 24] },
+  { id: "banane", nom: "Banane", cat: "fruits", u: "g", pf: [["1 banane", 120]], n: [90, 1.1, 20, 0.3, 1, 360, 22], f: "k" },
+  { id: "raisin", nom: "Raisin", cat: "fruits", u: "g", pf: [["Grappe", 120]], n: [70, 0.6, 16, 0.2, 2, 190, 20] },
+  { id: "orange", nom: "Orange", cat: "fruits", u: "g", pf: [["1 orange", 150]], n: [47, 0.9, 9, 0.1, 1, 180, 20] },
+  { id: "abricot-sec", nom: "Abricots secs", cat: "fruits", u: "g", pf: [["Poignée", 30]], n: [240, 3.4, 53, 0.5, 10, 1160, 70], f: "k" },
+  { id: "datte", nom: "Dattes", cat: "fruits", u: "g", pf: [["3 dattes", 25]], n: [280, 2.5, 66, 0.4, 3, 650, 60], f: "k" },
+  { id: "pasteque", nom: "Pastèque", cat: "fruits", u: "g", pf: [["Tranche", 200]], n: [30, 0.6, 7, 0.2, 1, 110, 11] },
+  { id: "melon", nom: "Melon", cat: "fruits", u: "g", pf: [["Tranche", 180]], n: [34, 0.8, 8, 0.2, 10, 270, 15] },
+
+  // ————— Laitages —————
+  { id: "yaourt", nom: "Yaourt nature", cat: "laitages", u: "g", pf: [["1 pot", 125]], n: [60, 4, 5, 3, 50, 180, 110], f: "p" },
+  { id: "skyr", nom: "Skyr / fromage blanc 0 %", cat: "laitages", u: "g", pf: [["1 pot", 150]], n: [60, 11, 4, 0.2, 55, 160, 145], f: "p" },
+  { id: "fromage-blanc", nom: "Fromage blanc 3 %", cat: "laitages", u: "g", pf: [["1 pot", 100]], n: [75, 8, 4, 3, 40, 150, 120], f: "p" },
+  { id: "feta", nom: "Beyaz peynir / feta", cat: "laitages", u: "g", pf: [["1 part", 30]], n: [265, 14, 1.5, 22, 1100, 90, 340], f: "na" },
+  { id: "kasar", nom: "Kaşar / emmental", cat: "laitages", u: "g", pf: [["1 part", 30]], n: [350, 25, 2, 27, 700, 100, 550], f: "p" },
+  { id: "fromage-fondu", nom: "Fromage fondu", cat: "laitages", u: "g", pf: [["1 portion", 20]], n: [290, 12, 6, 24, 1100, 130, 800], f: "add" },
+  { id: "beurre", nom: "Beurre", cat: "laitages", u: "g", pf: [["1 noisette", 10]], n: [750, 0.7, 0.6, 82, 10, 25, 25] },
+
+  // ————— Matières grasses & oléagineux —————
+  { id: "huile-olive", nom: "Huile d'olive", cat: "gras", u: "g", pf: [["1 c. à s.", 10], ["1 c. à c.", 5]], n: [900, 0, 0, 100, 0, 0, 0] },
+  { id: "amandes", nom: "Amandes", cat: "gras", u: "g", pf: [["Poignée", 25]], n: [600, 21, 5, 53, 3, 730, 480], f: "p" },
+  { id: "noix", nom: "Noix", cat: "gras", u: "g", pf: [["Poignée", 25]], n: [690, 15, 4, 65, 2, 450, 350], f: "p" },
+  { id: "noisettes", nom: "Noisettes", cat: "gras", u: "g", pf: [["Poignée", 25]], n: [640, 15, 7, 61, 2, 660, 300], f: "k" },
+  { id: "beurre-cacahuete", nom: "Beurre de cacahuète", cat: "gras", u: "g", pf: [["1 c. à s.", 20]], n: [600, 25, 12, 50, 350, 650, 350], f: "k" },
+  { id: "graines-courge", nom: "Graines de courge", cat: "gras", u: "g", pf: [["Poignée", 25]], n: [570, 30, 10, 49, 18, 800, 1200], f: "p" },
+
+  // ————— Épicerie & plats turcs —————
+  { id: "miel", nom: "Miel", cat: "epicerie", u: "g", pf: [["1 c. à c.", 8]], n: [320, 0.3, 80, 0, 4, 50, 5] },
+  { id: "sucre", nom: "Sucre", cat: "epicerie", u: "g", pf: [["1 morceau", 5]], n: [400, 0, 100, 0, 0, 0, 0] },
+  { id: "confiture", nom: "Confiture", cat: "epicerie", u: "g", pf: [["1 c. à s.", 20]], n: [260, 0.4, 63, 0.1, 10, 90, 12] },
+  { id: "olives", nom: "Olives noires", cat: "epicerie", u: "g", pf: [["5 olives", 20]], n: [150, 1.2, 4, 15, 1500, 40, 15], f: "na" },
+  { id: "cornichon", nom: "Cornichons", cat: "epicerie", u: "g", pf: [["3 cornichons", 30]], n: [15, 0.6, 2, 0.2, 1200, 100, 20], f: "na" },
+  { id: "sauce-tomate", nom: "Sauce tomate cuisinée", cat: "epicerie", u: "g", pf: [["Portion", 100]], n: [55, 1.5, 7, 2, 400, 350, 40], f: "na" },
+  { id: "chips", nom: "Chips", cat: "epicerie", u: "g", pf: [["Petit sachet", 30]], n: [540, 6, 50, 34, 500, 1000, 150], f: "k" },
+  { id: "borek", nom: "Börek", cat: "epicerie", u: "g", pf: [["1 part", 120]], n: [300, 9, 30, 16, 600, 130, 140], f: "na" },
+  { id: "halva", nom: "Helva", cat: "epicerie", u: "g", pf: [["1 part", 40]], n: [540, 12, 50, 32, 200, 400, 400], f: "p" },
+  { id: "baklava", nom: "Baklava", cat: "epicerie", u: "g", pf: [["1 part", 50]], n: [430, 6, 50, 23, 200, 200, 120] },
+  { id: "lokum", nom: "Lokum", cat: "epicerie", u: "g", pf: [["2 pièces", 20]], n: [350, 0.2, 87, 0.1, 20, 15, 5] },
+  { id: "chocolat-noir", nom: "Chocolat noir", cat: "epicerie", u: "g", pf: [["2 carrés", 20]], n: [550, 8, 45, 35, 15, 700, 300], f: "k" },
+
+  // ————— Boissons (comptées dans les liquides) —————
+  { id: "eau", nom: "Eau", cat: "boissons", u: "ml", pf: [["1 verre", 250], ["1 bouteille", 500]], n: [0, 0, 0, 0, 1, 1, 0] },
+  { id: "eau-gazeuse", nom: "Eau gazeuse", cat: "boissons", u: "ml", pf: [["1 verre", 250]], n: [0, 0, 0, 0, 50, 5, 0], f: "na" },
+  { id: "cay", nom: "Çay / thé sans sucre", cat: "boissons", u: "ml", pf: [["1 verre", 150]], n: [1, 0, 0.2, 0, 2, 20, 1] },
+  { id: "cafe", nom: "Café", cat: "boissons", u: "ml", pf: [["1 tasse", 100]], n: [2, 0.2, 0, 0, 2, 60, 3] },
+  { id: "tisane", nom: "Tisane", cat: "boissons", u: "ml", pf: [["1 tasse", 200]], n: [1, 0, 0, 0, 2, 10, 1] },
+  { id: "lait", nom: "Lait demi-écrémé", cat: "boissons", u: "ml", pf: [["1 verre", 200]], n: [46, 3.3, 4.8, 1.6, 45, 150, 95], f: "p" },
+  { id: "ayran", nom: "Ayran", cat: "boissons", u: "ml", pf: [["1 verre", 250]], n: [40, 1.7, 3, 1.7, 320, 130, 60], f: "na" },
+  { id: "jus-orange", nom: "Jus d'orange", cat: "boissons", u: "ml", pf: [["1 verre", 200]], n: [45, 0.7, 10, 0.1, 2, 180, 17], f: "k" },
+  { id: "soda", nom: "Soda type cola", cat: "boissons", u: "ml", pf: [["1 canette", 330]], n: [42, 0, 10.6, 0, 8, 2, 15], f: "add" },
+  { id: "soda-light", nom: "Soda light", cat: "boissons", u: "ml", pf: [["1 canette", 330]], n: [1, 0, 0, 0, 10, 2, 12], f: "add" },
+  { id: "soupe", nom: "Soupe (bouillon)", cat: "boissons", u: "ml", pf: [["1 bol", 250]], n: [35, 1.5, 5, 1, 350, 180, 40], f: "na" },
+];
+
+const ALIM_CATS = [
+  { id: "tout", label: "Tout" },
+  { id: "proteines", label: "Viandes, poissons, œufs" },
+  { id: "feculents", label: "Féculents" },
+  { id: "pain", label: "Pains" },
+  { id: "legumes", label: "Légumes" },
+  { id: "fruits", label: "Fruits" },
+  { id: "laitages", label: "Laitages" },
+  { id: "gras", label: "Gras & oléagineux" },
+  { id: "epicerie", label: "Épicerie" },
+  { id: "boissons", label: "Boissons" },
+];
+
+const FLAG_INFO = {
+  k: { t: "Riche en potassium", c: "amber" },
+  na: { t: "Salé", c: "amber" },
+  p: { t: "Riche en phosphore", c: "amber" },
+  add: { t: "Additifs phosphatés probables", c: "red" },
+};
+
+// Valeurs par portion des 28 recettes : [kcal, prot, gluc, lip, na, k, p]
+const RECETTE_NUT = {
+  menemen: [430, 17, 45, 20, 620, 700, 330],
+  porridge: [430, 14, 68, 10, 90, 700, 420],
+  tartines: [420, 18, 40, 20, 640, 480, 340],
+  skyr: [330, 22, 38, 8, 90, 480, 380],
+  "omelette-epinards": [340, 20, 4, 27, 350, 620, 340],
+  "poulet-riz": [620, 40, 62, 20, 220, 900, 450],
+  durum: [610, 34, 62, 22, 800, 700, 420],
+  "kofte-boulgour": [560, 33, 55, 21, 520, 750, 400],
+  "thon-pain": [450, 29, 45, 12, 900, 560, 350],
+  smoothie: [380, 15, 60, 8, 110, 750, 400],
+  "poulet-four": [570, 38, 25, 34, 260, 1100, 460],
+  "pates-dinde": [600, 36, 65, 18, 380, 700, 480],
+  "pilav-dinde": [590, 37, 60, 19, 250, 620, 430],
+  karniyarik: [480, 30, 28, 27, 420, 900, 350],
+  cabillaud: [480, 34, 58, 9, 280, 850, 430],
+  mercimek: [320, 18, 45, 7, 480, 700, 300],
+  taboule: [610, 32, 55, 27, 190, 800, 400],
+  "oeufs-cocotte": [360, 21, 8, 27, 400, 650, 380],
+  "poulet-poivrons": [540, 35, 50, 19, 230, 800, 400],
+  "omelette-salade": [380, 19, 8, 30, 330, 550, 330],
+  pide: [620, 31, 70, 24, 850, 550, 400],
+  "dinde-haricots": [400, 36, 15, 20, 180, 750, 400],
+  yogurtlu: [570, 33, 62, 17, 250, 650, 430],
+  "yaourt-miel": [290, 10, 45, 7, 90, 400, 300],
+  "pomme-amandes": [250, 6, 20, 14, 5, 350, 130],
+  "oeuf-pain": [300, 12, 40, 9, 590, 350, 250],
+  sutlac: [280, 9, 48, 6, 100, 380, 280],
+  "toast-cacahuete": [380, 9, 48, 15, 600, 380, 260],
+};
+
+// ————— Objectifs —————
+// Volontairement prudents et TOUS modifiables dans l'app : ce sont des
+// valeurs de départ, pas une prescription. Le néphrologue tranche.
+const SOFRA_OBJ_DEFAUT = { prot: null, kcal: null, na: 2000, k: 2500, p: 1000, eau: 1800 };
+const SOFRA_MOMENTS = [
+  { id: "petitdej", label: "Petit-déj", ic: "🌅" },
+  { id: "dej", label: "Déjeuner", ic: "🍽️" },
+  { id: "collation", label: "Collation", ic: "🥜" },
+  { id: "post", label: "Post-séance", ic: "💪" },
+  { id: "diner", label: "Dîner", ic: "🌙" },
+  { id: "boisson", label: "Boisson", ic: "💧" },
+];
+const MOMENT_LABEL = SOFRA_MOMENTS.reduce(function (a, m) { a[m.id] = m.label; return a; }, {});
+
+// Objectif calorique : métabolisme de base (Mifflin-St Jeor, homme) × activité,
+// + 300 kcal les jours de séance si l'objectif de poids est au-dessus du poids actuel.
+const objectifsSofra = (data, poidsCorps, jourSeance) => {
+  const perso = (data.sofra && data.sofra.obj) || {};
+  const base = Object.assign({}, SOFRA_OBJ_DEFAUT, perso);
+  if (base.prot == null) base.prot = Math.round(poidsCorps * PROT_PAR_KG);
+  if (base.kcal == null) {
+    const mb = 10 * poidsCorps + 6.25 * 175 - 5 * 22 + 5;
+    let kcal = mb * 1.45;
+    if (jourSeance) kcal += 250;
+    if (OBJECTIF_POIDS > poidsCorps) kcal += 300;
+    base.kcal = Math.round(kcal / 10) * 10;
+  }
+  return base;
+};
+
+// ————— Journal —————
+const journalDe = (data, iso) => ((data.sofra && data.sofra.journal) || {})[iso] || [];
+
+// Totaux d'une journée. `inc` compte les entrées dont une valeur est inconnue
+// (produit scanné sans potassium renseigné, par exemple) : on ne fait jamais
+// passer un total incomplet pour un total complet.
+const totauxDe = (entrees) => {
+  const t = { kcal: 0, prot: 0, gluc: 0, lip: 0, na: 0, k: 0, p: 0, eau: 0 };
+  const inc = { kcal: 0, prot: 0, gluc: 0, lip: 0, na: 0, k: 0, p: 0, eau: 0 };
+  entrees.forEach((e) => {
+    NUT_CLES.forEach((c) => {
+      const v = e.n && e.n[c];
+      if (v == null || isNaN(v)) inc[c]++;
+      else t[c] += v;
+    });
+    t.eau += e.eau || 0;
+  });
+  NUT_CLES.forEach((c) => { t[c] = Math.round(t[c] * 10) / 10; });
+  t.kcal = Math.round(t.kcal);
+  t.na = Math.round(t.na); t.k = Math.round(t.k); t.p = Math.round(t.p);
+  return { t: t, inc: inc };
+};
+
+// Applique une quantité à une table pour 100 g/ml.
+const portionNut = (n100, q) => {
+  const o = {};
+  NUT_CLES.forEach((c, i) => {
+    const v = n100[i];
+    o[c] = v == null ? null : Math.round(v * q) / 100;
+  });
+  return o;
+};
+
+const chercherAliments = (q, cat, perso) => {
+  const t = sansAccent(q || "");
+  const tous = (perso || []).concat(ALIMENTS);
+  return tous.filter((a) => {
+    if (cat && cat !== "tout" && a.cat !== cat) return false;
+    if (!t) return true;
+    return sansAccent(a.nom).indexOf(t) !== -1;
+  });
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// Lecture de code-barres EAN-13 / UPC-A, en JS pur.
+// Safari iOS n'a pas BarcodeDetector : on décode nous-mêmes l'image.
+// Principe : on binarise quelques lignes horizontales de l'image, on en tire
+// des suites de largeurs de barres, et on les compare aux motifs EAN.
+// ═══════════════════════════════════════════════════════════════════
+
+// Largeurs des 4 barres/espaces de chaque chiffre (7 modules au total).
+const EAN_L = [[3, 2, 1, 1], [2, 2, 2, 1], [2, 1, 2, 2], [1, 4, 1, 1], [1, 1, 3, 2], [1, 2, 3, 1], [1, 1, 1, 4], [1, 3, 1, 2], [1, 2, 1, 3], [3, 1, 1, 2]];
+const EAN_G = EAN_L.map((m) => m.slice().reverse());
+// Parité des 6 chiffres de gauche → 1er chiffre du code (0 = L, 1 = G).
+const EAN_PARITE = ["000000", "001011", "001101", "001110", "010011", "011001", "011100", "010101", "010110", "011010"];
+
+const verifierEAN = (code) => {
+  if (!/^\d{13}$/.test(code)) return false;
+  let s = 0;
+  for (let i = 0; i < 12; i++) s += Number(code.charAt(i)) * (i % 2 === 0 ? 1 : 3);
+  return (10 - (s % 10)) % 10 === Number(code.charAt(12));
+};
+
+// Écart entre des largeurs mesurées et un motif théorique. -1 = ne colle pas.
+const matchMotif = (cnt, motif) => {
+  let total = 0, totalM = 0;
+  for (let i = 0; i < cnt.length; i++) { total += cnt[i]; totalM += motif[i]; }
+  if (total < totalM) return -1;
+  const unit = total / totalM;
+  const marge = Math.max(unit * 0.7, 0.8);
+  let ecart = 0;
+  for (let i = 0; i < cnt.length; i++) {
+    const d = Math.abs(cnt[i] - motif[i] * unit);
+    if (d > marge) return -1;
+    ecart += d;
+  }
+  return ecart / total;
+};
+
+const lireDepuis = (runs, i0) => {
+  let i = i0 + 3;
+  const chiffres = [];
+  let parite = "";
+  for (let d = 0; d < 6; d++) {
+    const c = [runs[i], runs[i + 1], runs[i + 2], runs[i + 3]];
+    let best = -1, bestE = 1e9, bestP = 0;
+    for (let n = 0; n < 10; n++) {
+      const eL = matchMotif(c, EAN_L[n]);
+      if (eL >= 0 && eL < bestE) { bestE = eL; best = n; bestP = 0; }
+      const eG = matchMotif(c, EAN_G[n]);
+      if (eG >= 0 && eG < bestE) { bestE = eG; best = n; bestP = 1; }
+    }
+    if (best < 0) return null;
+    chiffres.push(best); parite += bestP;
+    i += 4;
+  }
+  if (matchMotif([runs[i], runs[i + 1], runs[i + 2], runs[i + 3], runs[i + 4]], [1, 1, 1, 1, 1]) < 0) return null;
+  i += 5;
+  for (let d = 0; d < 6; d++) {
+    const c = [runs[i], runs[i + 1], runs[i + 2], runs[i + 3]];
+    let best = -1, bestE = 1e9;
+    for (let n = 0; n < 10; n++) {
+      const e = matchMotif(c, EAN_L[n]);
+      if (e >= 0 && e < bestE) { bestE = e; best = n; }
+    }
+    if (best < 0) return null;
+    chiffres.push(best);
+    i += 4;
+  }
+  const premier = EAN_PARITE.indexOf(parite);
+  if (premier < 0) return null;
+  const code = String(premier) + chiffres.join("");
+  return verifierEAN(code) ? code : null;
+};
+
+// 59 runs = garde départ (3) + 6 chiffres (24) + garde central (5) + 6 chiffres (24) + garde fin (3)
+const decoderRuns = (runs, premierNoir) => {
+  for (let i = 0; i + 59 <= runs.length; i++) {
+    const estNoir = premierNoir ? i % 2 === 0 : i % 2 === 1;
+    if (!estNoir) continue;
+    if (matchMotif([runs[i], runs[i + 1], runs[i + 2]], [1, 1, 1]) < 0) continue;
+    const code = lireDepuis(runs, i);
+    if (code) return code;
+  }
+  return null;
+};
+
+const runsDeLigne = (data, largeur, y) => {
+  let min = 255, max = 0;
+  const g = new Uint8Array(largeur);
+  for (let x = 0; x < largeur; x++) {
+    const o = (y * largeur + x) * 4;
+    const v = (data[o] * 299 + data[o + 1] * 587 + data[o + 2] * 114) / 1000 | 0;
+    g[x] = v;
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  if (max - min < 40) return null; // pas assez de contraste : ligne inexploitable
+  const seuil = (min + max) / 2;
+  const runs = [];
+  let noir = g[0] < seuil;
+  const premierNoir = noir;
+  let n = 1;
+  for (let x = 1; x < largeur; x++) {
+    const b = g[x] < seuil;
+    if (b === noir) n++;
+    else { runs.push(n); noir = b; n = 1; }
+  }
+  runs.push(n);
+  return { runs: runs, premierNoir: premierNoir };
+};
+
+const lireCodeBarres = (data, largeur, hauteur) => {
+  const lignes = 20;
+  for (let i = 0; i < lignes; i++) {
+    const y = Math.round(hauteur * (0.15 + 0.7 * (i / (lignes - 1))));
+    const r = runsDeLigne(data, largeur, y);
+    if (!r || r.runs.length < 59) continue;
+    let code = decoderRuns(r.runs, r.premierNoir);
+    if (code) return code;
+    // Code présenté à l'envers : on relit la même ligne dans l'autre sens.
+    const dernierNoir = r.runs.length % 2 === 1 ? r.premierNoir : !r.premierNoir;
+    code = decoderRuns(r.runs.slice().reverse(), dernierNoir);
+    if (code) return code;
+  }
+  return null;
+};
+
+// ————— Open Food Facts —————
+// Base ouverte, sans clé d'API : rien de secret ne part dans le repo public.
+// C'est le SEUL appel réseau de PLATEAU, et il est déclenché par un scan.
+const chercherOFF = async (code) => {
+  const champs = "product_name,product_name_fr,brands,nutriments,quantity,serving_size";
+  const url = "https://world.openfoodfacts.org/api/v2/product/" + encodeURIComponent(code) + ".json?fields=" + champs;
+  const rep = await fetch(url, { headers: { Accept: "application/json" } });
+  if (rep.status === 404) return null;   // produit absent de la base, pas une panne reseau
+  if (!rep.ok) throw new Error("reseau");
+  const j = await rep.json();
+  if (!j || j.status !== 1 || !j.product) return null;
+  const p = j.product, nu = p.nutriments || {};
+  const num = (v) => (v == null || v === "" || isNaN(Number(v)) ? null : Number(v));
+  const mg = (v) => (num(v) == null ? null : Math.round(num(v) * 1000));
+  // OFF donne le sodium en grammes. À défaut, on le déduit du sel (sel = sodium × 2,5).
+  let na = mg(nu.sodium_100g);
+  if (na == null && num(nu.salt_100g) != null) na = Math.round(num(nu.salt_100g) * 400);
+  const kcal = num(nu["energy-kcal_100g"]);
+  return {
+    code: code,
+    nom: p.product_name_fr || p.product_name || "Produit " + code,
+    marque: (p.brands || "").split(",")[0].trim() || null,
+    cat: "produits",
+    u: "g",
+    pf: [["Portion", 100]],
+    n: [kcal, num(nu.proteins_100g), num(nu.carbohydrates_100g), num(nu.fat_100g), na, mg(nu.potassium_100g), mg(nu.phosphorus_100g)],
+  };
+};
+
+// ————— Le scanner —————
+function ScannerCB({ onCode, onFermer }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const cbRef = useRef(onCode);
+  cbRef.current = onCode;
+  const [etat, setEtat] = useState("demarrage"); // demarrage | actif | refus | nocam
+  const [manuel, setManuel] = useState("");
+
+  useEffect(() => {
+    let stream = null, timer = null, stop = false, detector = null;
+    const boucle = async () => {
+      if (stop) return;
+      try {
+        const v = videoRef.current, cv = canvasRef.current;
+        if (v && cv && v.videoWidth) {
+          if (detector) {
+            const codes = await detector.detect(v);
+            if (codes && codes.length && codes[0].rawValue) { cbRef.current(codes[0].rawValue); return; }
+          } else {
+            const L = 640;
+            const H = Math.max(1, Math.round(v.videoHeight * (L / v.videoWidth)));
+            cv.width = L; cv.height = H;
+            const ctx = cv.getContext("2d", { willReadFrequently: true });
+            ctx.drawImage(v, 0, 0, L, H);
+            const code = lireCodeBarres(ctx.getImageData(0, 0, L, H).data, L, H);
+            if (code) { cbRef.current(code); return; }
+          }
+        }
+      } catch {}
+      if (!stop) timer = setTimeout(boucle, 120);
+    };
+    (async () => {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { setEtat("nocam"); return; }
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } } });
+        if (stop) { stream.getTracks().forEach((t) => t.stop()); return; }
+        const v = videoRef.current;
+        if (!v) return;
+        v.srcObject = stream;
+        v.setAttribute("playsinline", "true");
+        v.muted = true;
+        await v.play();
+        setEtat("actif");
+        try {
+          if (window.BarcodeDetector) detector = new window.BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] });
+        } catch {}
+        timer = setTimeout(boucle, 300);
+      } catch (e) {
+        setEtat(e && e.name === "NotAllowedError" ? "refus" : "nocam");
+      }
+    })();
+    return () => {
+      stop = true;
+      if (timer) clearTimeout(timer);
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+
+  const valider = () => {
+    const c = manuel.replace(/\D/g, "");
+    if (c.length >= 8) cbRef.current(c);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto" style={{ background: C.bgAlt }}>
+      <div className="mx-auto p-4 pb-24" style={{ maxWidth: "28rem" }}>
+        <button onClick={onFermer} className="pl-tap mb-3 rounded-xl px-3 py-2 font-semibold" style={{ background: C.card2, color: C.text, border: `1px solid ${C.hair}` }}>
+          ← Retour
+        </button>
+        <div className="font-black" style={{ ...DISPLAY, fontSize: 26 }}>Scanner un produit</div>
+
+        <div className="rounded-2xl overflow-hidden mt-3" style={{ background: "#000", position: "relative", aspectRatio: "4 / 3" }}>
+          <video ref={videoRef} playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <div style={{ position: "absolute", left: "6%", right: "6%", top: "38%", height: "24%", border: `2px solid ${C.yellow}`, borderRadius: 10, boxShadow: "0 0 0 2000px rgba(0,0,0,.35)" }} />
+          {etat === "demarrage" && (
+            <div className="absolute inset-0 flex items-center justify-center text-sm" style={{ color: "#fff" }}>Ouverture de la caméra…</div>
+          )}
+        </div>
+        <canvas ref={canvasRef} style={{ display: "none" }} />
+
+        {etat === "actif" && (
+          <div className="text-sm mt-2 text-center" style={{ color: C.dim }}>
+            Cadre le code-barres dans le rectangle, bien à plat et bien éclairé.
+          </div>
+        )}
+        {etat === "refus" && (
+          <Card className="mt-3" style={{ background: C.warnBg }}>
+            <div className="text-sm"><b>Caméra refusée. </b>Autorise l'accès dans Réglages → Safari, ou saisis le code à la main ci-dessous.</div>
+          </Card>
+        )}
+        {etat === "nocam" && (
+          <Card className="mt-3" style={{ background: C.warnBg }}>
+            <div className="text-sm"><b>Pas de caméra utilisable ici. </b>Saisis les chiffres sous le code-barres.</div>
+          </Card>
+        )}
+
+        <Card className="mt-3">
+          <div className="font-bold mb-2">Ou saisis le code</div>
+          <div className="flex gap-2">
+            <input
+              value={manuel}
+              onChange={(e) => setManuel(e.target.value)}
+              inputMode="numeric"
+              placeholder="3017620422003"
+              className="flex-1 rounded-xl px-3 py-3"
+              style={{ background: C.card, border: `1px solid ${C.line}`, color: C.text, ...NUMS }}
+            />
+            <button onClick={valider} disabled={manuel.replace(/\D/g, "").length < 8} className="pl-tap rounded-xl px-4 font-bold" style={{ background: manuel.replace(/\D/g, "").length < 8 ? C.card2 : C.yellow, color: manuel.replace(/\D/g, "").length < 8 ? C.dim : C.onYellow }}>
+              OK
+            </button>
+          </div>
+          <div className="text-xs mt-2" style={{ color: C.dim }}>
+            Les 13 chiffres imprimés sous les barres.
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// Moment proposé par défaut selon l'heure — corrigeable d'un tap.
+const momentAuto = () => {
+  const h = new Date().getHours();
+  if (h < 11) return "petitdej";
+  if (h < 15) return "dej";
+  if (h < 18) return "collation";
+  if (h < 23) return "diner";
+  return "collation";
+};
+
+const resumeJour = (iso, entrees, tot, obj) => {
+  const lignes = SOFRA_MOMENTS.filter((m) => entrees.some((e) => e.moment === m.id)).map((m) => {
+    const l = entrees.filter((e) => e.moment === m.id);
+    return "  " + m.label + " : " + l.map((e) => e.nom + " (" + e.detail + ")").join(", ");
+  });
+  return (
+    "Journée alimentaire du " + iso + "\n" +
+    lignes.join("\n") + "\n\n" +
+    "Totaux : " + tot.kcal + " kcal (objectif " + obj.kcal + ")\n" +
+    "  protéines " + Math.round(tot.prot) + " g (objectif " + obj.prot + ")\n" +
+    "  glucides " + Math.round(tot.gluc) + " g, lipides " + Math.round(tot.lip) + " g\n" +
+    "  sodium " + tot.na + " mg (plafond " + obj.na + ")\n" +
+    "  potassium " + tot.k + " mg (plafond " + obj.k + ")\n" +
+    "  phosphore " + tot.p + " mg (plafond " + obj.p + ")\n" +
+    "  liquides " + tot.eau + " ml (objectif " + obj.eau + ")\n\n" +
+    "Valeurs indicatives, issues de tables de composition moyennes et d'Open Food Facts."
+  );
+};
+
+// ————— Feuille : quantité et moment —————
+function FeuilleQuantite({ ajout, setAjout, onValider }) {
+  const it = ajout.item;
+  const [q, setQ] = useState(String(ajout.q));
+  const [moment, setMoment] = useState(ajout.moment);
+  const nombre = Math.max(0, parseFloat(String(q).replace(",", ".")) || 0);
+  const apercu = portionNut(it.n, it.u === "portion" ? nombre * 100 : nombre);
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto" style={{ background: C.bgAlt }}>
+      <div className="mx-auto p-4 pb-24" style={{ maxWidth: "28rem" }}>
+        <button onClick={() => setAjout(null)} className="pl-tap mb-3 rounded-xl px-3 py-2 font-semibold" style={{ background: C.card2, color: C.text, border: `1px solid ${C.hair}` }}>
+          ← Retour
+        </button>
+        <div className="font-black" style={{ ...DISPLAY, fontSize: 25, lineHeight: 1.15 }}>{it.nom}</div>
+        {it.marque && <div className="text-sm" style={{ color: C.dim }}>{it.marque}</div>}
+
+        <Card className="mt-3">
+          <div className="font-bold mb-2">Combien ?</div>
+          {it.pf && it.pf.length > 0 && (
+            <div className="flex gap-2 flex-wrap mb-3">
+              {it.pf.map((p) => (
+                <Chip key={p[0]} active={nombre === p[1]} onClick={() => setQ(String(p[1]))}>{p[0]}</Chip>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              inputMode="decimal"
+              className="flex-1 rounded-xl px-3 py-3 font-black"
+              style={{ background: C.card2, border: `1px solid ${C.line}`, color: C.text, ...NUMS, fontSize: 22 }}
+            />
+            <div className="font-bold" style={{ color: C.dim, width: 62 }}>{it.u === "portion" ? "portion" : it.u}</div>
+          </div>
+        </Card>
+
+        <Card className="mt-3">
+          <div className="font-bold mb-2">Ça compte pour</div>
+          <div className="grid grid-cols-2 gap-x-4">
+            {NUT_CLES.map((c) => (
+              <div key={c} className="flex justify-between text-sm py-1" style={{ borderBottom: `1px solid ${C.hair}` }}>
+                <span style={{ color: C.dim }}>{NUT_LABEL[c]}</span>
+                <span style={NUMS}>{apercu[c] == null ? "?" : Math.round(apercu[c] * 10) / 10} {NUT_UNITE[c]}</span>
+              </div>
+            ))}
+          </div>
+          {NUT_CLES.some((c) => apercu[c] == null) && (
+            <div className="text-xs mt-2" style={{ color: C.amber }}>
+              Les valeurs marquées « ? » ne sont pas renseignées pour ce produit — elles ne seront
+              pas comptées dans les totaux, qui resteront donc des minimums.
+            </div>
+          )}
+        </Card>
+
+        <Card className="mt-3">
+          <div className="font-bold mb-2">Quel moment ?</div>
+          <div className="flex gap-2 flex-wrap">
+            {SOFRA_MOMENTS.map((m) => (
+              <Chip key={m.id} active={moment === m.id} onClick={() => setMoment(m.id)}>{m.ic} {m.label}</Chip>
+            ))}
+          </div>
+        </Card>
+
+        <button
+          onClick={() => onValider(it.u === "portion" ? nombre * 100 : nombre, moment)}
+          disabled={!nombre}
+          className="pl-tap w-full rounded-xl py-4 mt-3 font-black"
+          style={{ background: nombre ? C.yellow : C.card2, color: nombre ? C.onYellow : C.dim, ...DISPLAY, fontSize: 18 }}
+        >
+          Ajouter au journal
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ————— Feuille : saisie libre (avec photo éventuelle) —————
+function FeuilleLibre({ libre, setLibre, texteClaude, onPartager, onCopier, onValider }) {
+  const [nom, setNom] = useState(libre.nom || "");
+  const [q, setQ] = useState(String(libre.q || 1));
+  const [u, setU] = useState(libre.code ? "g" : "portion");
+  const [moment, setMoment] = useState(libre.moment);
+  const [n, setN] = useState(libre.n);
+  const [colle, setColle] = useState("");
+
+  const maj = (c, v) => setN(Object.assign({}, n, { [c]: v === "" ? null : Number(String(v).replace(",", ".")) }));
+
+  // Colle la ligne « nom | kcal | prot | … » renvoyée par Claude.
+  const importerLigne = () => {
+    const p = colle.split("|").map((x) => x.trim());
+    if (p.length < 8) return;
+    if (p[0]) setNom(p[0]);
+    const num = (x) => { const v = parseFloat(String(x).replace(",", ".")); return isNaN(v) ? null : v; };
+    setN({ kcal: num(p[1]), prot: num(p[2]), gluc: num(p[3]), lip: num(p[4]), na: num(p[5]), k: num(p[6]), p: num(p[7]) });
+    setColle("");
+  };
+
+  const nombre = Math.max(0, parseFloat(String(q).replace(",", ".")) || 0);
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto" style={{ background: C.bgAlt }}>
+      <div className="mx-auto p-4 pb-24" style={{ maxWidth: "28rem" }}>
+        <button onClick={() => { if (libre.photoId) supprimerPhoto(libre.photoId); setLibre(null); }} className="pl-tap mb-3 rounded-xl px-3 py-2 font-semibold" style={{ background: C.card2, color: C.text, border: `1px solid ${C.hair}` }}>
+          ← Annuler
+        </button>
+        <div className="font-black" style={{ ...DISPLAY, fontSize: 25 }}>{libre.photoId ? "Ce plat" : "Saisie libre"}</div>
+
+        {libre.photoId && (
+          <Card className="mt-3">
+            <div className="flex gap-3">
+              <PhotoThumb photoId={libre.photoId} size={84} />
+              <div className="flex-1">
+                <div className="text-sm" style={{ color: C.dim }}>
+                  PLATEAU ne reconnaît pas les plats tout seul — ça demanderait une clé d'API dans
+                  un dépôt public. Envoie la photo à Claude : il te renvoie une ligne à coller ici.
+                </div>
+              </div>
+            </div>
+            <button onClick={() => onPartager(libre.photoId)} className="pl-tap w-full rounded-xl py-3 mt-3 font-bold" style={{ background: C.yellow, color: C.onYellow }}>
+              Envoyer la photo à Claude
+            </button>
+            <button onClick={() => onCopier(texteClaude())} className="pl-tap w-full rounded-xl py-2.5 mt-2 text-sm font-semibold" style={{ background: C.card2, color: C.text, border: `1px solid ${C.hair}` }}>
+              Copier seulement la question
+            </button>
+            <div className="mt-3">
+              <div className="text-xs font-bold mb-1" style={{ color: C.dim }}>COLLER LA RÉPONSE</div>
+              <div className="flex gap-2">
+                <input value={colle} onChange={(e) => setColle(e.target.value)} placeholder="nom | kcal | prot | …" className="flex-1 rounded-xl px-3 py-2.5 text-sm" style={{ background: C.card2, border: `1px solid ${C.line}`, color: C.text }} />
+                <button onClick={importerLigne} className="pl-tap rounded-xl px-3 font-bold" style={{ background: C.card2, color: C.text, border: `1px solid ${C.hair}` }}>OK</button>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        <Card className="mt-3">
+          <div className="font-bold mb-2">Quoi ?</div>
+          <input value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Nom du plat ou du produit" className="w-full rounded-xl px-3 py-3" style={{ background: C.card2, border: `1px solid ${C.line}`, color: C.text }} />
+          <div className="flex items-center gap-2 mt-2">
+            <input value={q} onChange={(e) => setQ(e.target.value)} inputMode="decimal" className="flex-1 rounded-xl px-3 py-2.5" style={{ background: C.card2, border: `1px solid ${C.line}`, color: C.text, ...NUMS }} />
+            {["g", "ml", "portion"].map((x) => (
+              <Chip key={x} active={u === x} onClick={() => setU(x)}>{x}</Chip>
+            ))}
+          </div>
+          <div className="text-xs mt-2" style={{ color: C.dim }}>
+            Les valeurs ci-dessous sont celles de <b>cette quantité</b>, pas pour 100 g.
+          </div>
+        </Card>
+
+        <Card className="mt-3">
+          <div className="font-bold mb-2">Valeurs</div>
+          {NUT_CLES.map((c) => (
+            <div key={c} className="flex items-center gap-2 py-1">
+              <div className="flex-1 text-sm" style={{ color: C.dim }}>{NUT_LABEL[c]}</div>
+              <input
+                value={n[c] == null ? "" : n[c]}
+                onChange={(e) => maj(c, e.target.value.replace(/[^\d.,]/g, ""))}
+                inputMode="decimal"
+                placeholder="?"
+                className="rounded-lg px-2 py-2 text-right"
+                style={{ width: 90, background: C.card2, border: `1px solid ${C.line}`, color: C.text, ...NUMS }}
+              />
+              <div style={{ width: 34, fontSize: 12, color: C.dim }}>{NUT_UNITE[c]}</div>
+            </div>
+          ))}
+          <div className="text-xs mt-1" style={{ color: C.dim }}>Laisse vide ce que tu ne sais pas — ce sera compté comme inconnu, pas comme zéro.</div>
+        </Card>
+
+        <Card className="mt-3">
+          <div className="font-bold mb-2">Quel moment ?</div>
+          <div className="flex gap-2 flex-wrap">
+            {SOFRA_MOMENTS.map((m) => (
+              <Chip key={m.id} active={moment === m.id} onClick={() => setMoment(m.id)}>{m.ic} {m.label}</Chip>
+            ))}
+          </div>
+        </Card>
+
+        <button
+          onClick={() => onValider({
+            id: uid(),
+            moment: moment,
+            nom: nom.trim() || "Repas",
+            detail: nombre + " " + u,
+            q: nombre,
+            u: u,
+            n: n,
+            eau: u === "ml" ? nombre : 0,
+            photoId: libre.photoId || null,
+            code: libre.code || null,
+          })}
+          disabled={!nom.trim()}
+          className="pl-tap w-full rounded-xl py-4 mt-3 font-black"
+          style={{ background: nom.trim() ? C.yellow : C.card2, color: nom.trim() ? C.onYellow : C.dim, ...DISPLAY, fontSize: 18 }}
+        >
+          Ajouter au journal
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ————— Suivi sur la durée —————
+function SuiviSofra({ data, obj, periode, setPeriode, nut, setNut }) {
+  const jours = [];
+  for (let i = periode - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const iso = isoOf(d);
+    jours.push({ iso: iso, r: totauxDe(journalDe(data, iso)) });
+  }
+  const remplis = jours.filter((j) => j.r.t.kcal > 0 || j.r.t.eau > 0);
+  const vals = jours.map((j) => (nut === "eau" ? j.r.t.eau : j.r.t[nut]));
+  const maxV = Math.max(obj[nut] || 1, ...vals) || 1;
+  const moy = remplis.length ? Math.round(remplis.reduce((a, j) => a + (nut === "eau" ? j.r.t.eau : j.r.t[nut]), 0) / remplis.length) : 0;
+  const plafond = nut === "na" || nut === "k" || nut === "p";
+  const dansObj = remplis.filter((j) => {
+    const v = nut === "eau" ? j.r.t.eau : j.r.t[nut];
+    return plafond ? v <= obj[nut] : v >= obj[nut] * 0.9;
+  }).length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <Chip active={periode === 7} onClick={() => setPeriode(7)}>7 jours</Chip>
+        <Chip active={periode === 30} onClick={() => setPeriode(30)}>30 jours</Chip>
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+        {["kcal", "prot", "eau", "na", "k", "p"].map((c) => (
+          <Chip key={c} active={nut === c} onClick={() => setNut(c)}>{NUT_LABEL[c]}</Chip>
+        ))}
+      </div>
+
+      {!remplis.length && (
+        <Card>
+          <div className="font-bold mb-1">Rien à afficher</div>
+          <div className="text-sm" style={{ color: C.dim }}>Note quelques journées dans le journal : les tendances apparaîtront ici.</div>
+        </Card>
+      )}
+
+      {remplis.length > 0 && (
+        <>
+          <Card>
+            <div className="flex justify-between items-baseline mb-3">
+              <div className="font-bold">{NUT_LABEL[nut]}</div>
+              <div style={{ fontSize: 12, color: C.dim }}>
+                objectif <b style={{ ...NUMS, color: C.text }}>{obj[nut]}</b> {NUT_UNITE[nut]}
+              </div>
+            </div>
+            <div className="flex items-end gap-1" style={{ height: 130 }}>
+              {jours.map((j) => {
+                const v = nut === "eau" ? j.r.t.eau : j.r.t[nut];
+                const h = Math.max(2, (v / maxV) * 120);
+                const ok = plafond ? v <= obj[nut] : v >= obj[nut] * 0.9;
+                return (
+                  <div key={j.iso} className="flex-1 flex flex-col justify-end items-center" style={{ minWidth: 0 }}>
+                    <div title={j.iso + " : " + v} style={{ width: "80%", height: h, background: v === 0 ? C.card2 : ok ? C.green : C.amber, borderRadius: 3 }} />
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex justify-between mt-1" style={{ fontSize: 9, color: C.dim }}>
+              <span>{fmtShort(jours[0].iso)}</span>
+              <span>{fmtShort(jours[jours.length - 1].iso)}</span>
+            </div>
+            {/* Repère de l'objectif */}
+            <div className="text-xs mt-2" style={{ color: C.dim }}>
+              Barre verte = {plafond ? "sous le plafond" : "objectif atteint"}. Barre grise = journée non renseignée.
+            </div>
+          </Card>
+
+          <div className="flex gap-2">
+            {[["Moyenne", moy + " " + NUT_UNITE[nut]], [plafond ? "Sous le plafond" : "Objectif atteint", dansObj + " / " + remplis.length], ["Journées notées", remplis.length + " / " + periode]].map(([l, v]) => (
+              <Card key={l} className="flex-1" style={{ padding: 12 }}>
+                <div className="font-black" style={{ ...DISPLAY, ...NUMS, fontSize: 17 }}>{v}</div>
+                <div style={{ fontSize: 10, color: C.dim }}>{l}</div>
+              </Card>
+            ))}
+          </div>
+
+          <Card>
+            <div className="font-bold mb-2">Détail par jour</div>
+            {jours.slice().reverse().filter((j) => j.r.t.kcal > 0 || j.r.t.eau > 0).map((j) => (
+              <div key={j.iso} className="flex justify-between items-center py-1.5 text-sm" style={{ borderBottom: `1px solid ${C.hair}` }}>
+                <span style={{ color: C.dim }}>{fmtDate(j.iso)}</span>
+                <span style={NUMS}>
+                  {j.r.t.kcal} kcal · {Math.round(j.r.t.prot)} g · {j.r.t.eau} ml
+                </span>
+              </div>
+            ))}
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ————— L'onglet —————
+// ————— Petits blocs d'affichage —————
+
+// Barre « consommé / objectif ». Ici l'objectif est un PLAFOND : on est bien
+// en dessous, pas au-dessus. D'où le code couleur inversé par rapport au reste
+// de PLATEAU, où remplir la barre est une bonne nouvelle.
+const BarreNut = ({ cle, v, obj, incomplet }) => {
+  const pct = obj ? Math.min(160, (v / obj) * 100) : 0;
+  const coul = pct > 100 ? C.red : pct > 85 ? C.amber : C.green;
+  return (
+    <div className="mt-2.5">
+      <div className="flex items-baseline justify-between" style={{ fontSize: 12 }}>
+        <span style={{ color: C.dim }}>{NUT_LABEL[cle]}</span>
+        <span style={{ ...NUMS, color: pct > 100 ? C.red : C.text }}>
+          <b>{Math.round(v)}</b>
+          <span style={{ color: C.dim }}> / {obj} {NUT_UNITE[cle]}</span>
+          {incomplet > 0 && <span style={{ color: C.amber }}> +?</span>}
+        </span>
+      </div>
+      <div className="rounded-full overflow-hidden mt-1" style={{ height: 7, background: C.card2 }}>
+        <div style={{ width: Math.min(100, pct) + "%", height: "100%", background: coul, borderRadius: 999, transition: "width .3s" }} />
+      </div>
+    </div>
+  );
+};
+
+const PastilleFlag = ({ f }) => {
+  if (!f || !FLAG_INFO[f]) return null;
+  const i = FLAG_INFO[f];
+  return (
+    <span className="rounded-md px-1.5 py-0.5" style={{ fontSize: 10, background: i.c === "red" ? C.errBg : C.warnBg, color: i.c === "red" ? C.red : C.amber, whiteSpace: "nowrap" }}>
+      {i.t}
+    </span>
+  );
+};
+
 // ————— L'onglet —————
 const SofraTab = ({ data, saveData, poidsCorps, conseil, faitAujourdhui }) => {
   const [vue, setVue] = useState("jour");
@@ -2206,12 +3089,67 @@ const SofraTab = ({ data, saveData, poidsCorps, conseil, faitAujourdhui }) => {
   const [q, setQ] = useState("");
   const [ouverte, setOuverte] = useState(null);
   const [decal, setDecal] = useState({});
+  const [jour, setJour] = useState(todayISO());
+
+  // Ajout d'une entrée
+  const [ajout, setAjout] = useState(null);       // { item, q, moment, photoId }
+  const [recherche, setRecherche] = useState(null); // null | "" (feuille ouverte)
+  const [catAlim, setCatAlim] = useState("tout");
+  const [qAlim, setQAlim] = useState("");
+  const [scanOuvert, setScanOuvert] = useState(false);
+  const [scanEtat, setScanEtat] = useState(null); // { chargement, err, code }
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [libre, setLibre] = useState(null);
+  const photoRef = useRef(null);
+
+  // Suivi
+  const [periode, setPeriode] = useState(7);
+  const [nutSuivi, setNutSuivi] = useState("kcal");
+  const [editObj, setEditObj] = useState(false);
 
   const sofra = data.sofra || { courses: [], faits: [] };
   const majSofra = (patch) => saveData({ ...data, sofra: { ...sofra, ...patch } });
 
-  const objProt = Math.round(poidsCorps * PROT_PAR_KG);
+  const jourSeance = (data.seances || []).some((s) => s.date === jour);
+  const obj = objectifsSofra(data, poidsCorps, jourSeance);
+  const entrees = journalDe(data, jour);
+  const { t: tot, inc } = totauxDe(entrees);
   const plan = planDuJour(conseil, faitAujourdhui);
+  const produits = sofra.produits || {};
+  const perso = sofra.perso || [];
+
+  // ————— Écritures —————
+  const ecrireJournal = (iso, liste) => {
+    const j = Object.assign({}, sofra.journal || {});
+    if (liste.length) j[iso] = liste; else delete j[iso];
+    majSofra({ journal: j });
+  };
+  const ajouterEntree = (e) => ecrireJournal(jour, entrees.concat([e]));
+  const supprimerEntree = (id) => {
+    const e = entrees.find((x) => x.id === id);
+    if (e && e.photoId) supprimerPhoto(e.photoId);
+    ecrireJournal(jour, entrees.filter((x) => x.id !== id));
+  };
+
+  const entreeDepuis = (item, quantite, moment, photoId) => {
+    const n = portionNut(item.n, quantite);
+    return {
+      id: uid(),
+      moment: moment,
+      nom: item.nom + (item.marque ? " · " + item.marque : ""),
+      detail: quantite + " " + (item.u || "g"),
+      q: quantite,
+      u: item.u || "g",
+      n: n,
+      eau: (item.u === "ml" ? quantite : 0),
+      photoId: photoId || null,
+      code: item.code || null,
+    };
+  };
+
+  const ajoutRapideBoisson = (item, ml) => {
+    ajouterEntree(entreeDepuis(item, ml, "boisson", null));
+  };
 
   const ajouterCourses = (r) => {
     const nouv = r.ing.map((i) => `${i[0]} — ${i[1]}`).filter((x) => sofra.courses.indexOf(x) === -1);
@@ -2222,12 +3160,78 @@ const SofraTab = ({ data, saveData, poidsCorps, conseil, faitAujourdhui }) => {
     majSofra({ faits: faits.indexOf(item) === -1 ? [...faits, item] : faits.filter((x) => x !== item) });
   };
 
+  // ————— Scan —————
+  const traiterCode = async (code) => {
+    setScanOuvert(false);
+    const connu = produits[code];
+    if (connu) { setAjout({ item: connu, q: (connu.pf && connu.pf[0] && connu.pf[0][1]) || 100, moment: momentAuto(), photoId: null }); return; }
+    setScanEtat({ chargement: true, code: code });
+    try {
+      const p = await chercherOFF(code);
+      if (!p) { setScanEtat({ err: "inconnu", code: code }); return; }
+      majSofra({ produits: Object.assign({}, produits, { [code]: p }) });
+      setScanEtat(null);
+      setAjout({ item: p, q: 100, moment: momentAuto(), photoId: null });
+    } catch (e) {
+      setScanEtat({ err: "reseau", code: code });
+    }
+  };
+
+  // ————— Photo —————
+  const prendrePhoto = async (file) => {
+    if (!file) return;
+    setPhotoBusy(true);
+    try {
+      const dataUrl = await compressImage(file, 800, 0.6);
+      const id = uid();
+      if (window.storage) await window.storage.set("plateau-photo-" + id, dataUrl);
+      photoCache[id] = dataUrl;
+      setLibre({ nom: "", q: 1, moment: momentAuto(), photoId: id, n: { kcal: null, prot: null, gluc: null, lip: null, na: null, k: null, p: null } });
+    } catch {}
+    setPhotoBusy(false);
+  };
+
+  const texteClaude = () => {
+    const o = objectifsSofra(data, poidsCorps, jourSeance);
+    return (
+      "Tu m'aides à estimer ce que je viens de manger, à partir de la photo jointe.\n\n" +
+      "Mon contexte : " + poidsCorps + " kg, suivi néphrologique. Mes plafonds journaliers : " +
+      "sodium " + o.na + " mg, potassium " + o.k + " mg, phosphore " + o.p + " mg. " +
+      "Objectif protéines " + o.prot + " g/jour, calories " + o.kcal + " kcal.\n\n" +
+      "Déjà consommé aujourd'hui : " + tot.kcal + " kcal, " + tot.prot + " g de protéines, " +
+      tot.na + " mg de sodium, " + tot.k + " mg de potassium, " + tot.p + " mg de phosphore, " +
+      tot.eau + " ml de liquides.\n\n" +
+      "Réponds-moi UNIQUEMENT avec cette ligne, chiffres estimés pour la portion visible :\n" +
+      "nom | kcal | protéines g | glucides g | lipides g | sodium mg | potassium mg | phosphore mg"
+    );
+  };
+
+  const copier = async (txt) => {
+    try { await navigator.clipboard.writeText(txt); } catch {}
+  };
+
+  const partagerPhoto = async (photoId) => {
+    try {
+      const src = photoCache[photoId] || (window.storage ? (await window.storage.get("plateau-photo-" + photoId)).value : null);
+      if (!src) return;
+      const blob = await (await fetch(src)).blob();
+      const f = new File([blob], "repas.jpg", { type: "image/jpeg" });
+      if (navigator.canShare && navigator.canShare({ files: [f] })) {
+        await navigator.share({ files: [f], text: texteClaude() });
+        return;
+      }
+    } catch {}
+    copier(texteClaude());
+  };
+
+  // ————— Recettes —————
   const liste = RECETTES.filter((r) => {
     if (cat !== "tout" && r.cat !== cat) return false;
     if (!q.trim()) return true;
     const t = sansAccent(q);
     return sansAccent(r.nom).indexOf(t) !== -1 || r.ing.some((i) => sansAccent(i[0]).indexOf(t) !== -1);
   });
+  const rec = ouverte ? RECETTES.find((x) => x.id === ouverte) : null;
 
   const CarteRecette = ({ r, label }) => (
     <Card onClick={() => setOuverte(r.id)} style={{ cursor: "pointer" }}>
@@ -2242,28 +3246,142 @@ const SofraTab = ({ data, saveData, poidsCorps, conseil, faitAujourdhui }) => {
           <div style={{ fontSize: 10, color: C.dim }}>protéines</div>
         </div>
       </div>
-      <div className="flex items-center gap-2 mt-2" style={{ fontSize: 11, color: C.dim }}>
+      <div className="flex items-center gap-2 mt-2 flex-wrap" style={{ fontSize: 11, color: C.dim }}>
         <span>⏱ {r.min} min</span>
         <span>·</span>
         <span>{SOFRA_CAT_LABEL[r.cat]}</span>
+        {RECETTE_NUT[r.id] && <><span>·</span><span style={NUMS}>{RECETTE_NUT[r.id][0]} kcal</span></>}
         {r.feu === "v" && <span style={{ color: C.amber }}>· ⚠️ à compter dans la journée</span>}
       </div>
     </Card>
   );
 
-  const rec = ouverte ? RECETTES.find((x) => x.id === ouverte) : null;
+  const listeAlim = chercherAliments(qAlim, catAlim, perso.concat(Object.keys(produits).map((c) => produits[c])));
 
   return (
     <div className="space-y-3 pl-anim">
       <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
-        <Chip active={vue === "jour"} onClick={() => setVue("jour")}>Aujourd'hui</Chip>
+        <Chip active={vue === "jour"} onClick={() => setVue("jour")}>Journal</Chip>
+        <Chip active={vue === "idees"} onClick={() => setVue("idees")}>Idées</Chip>
         <Chip active={vue === "recettes"} onClick={() => setVue("recettes")}>Recettes</Chip>
+        <Chip active={vue === "suivi"} onClick={() => setVue("suivi")}>Suivi</Chip>
         <Chip active={vue === "courses"} onClick={() => setVue("courses")}>Courses{sofra.courses.length ? ` (${sofra.courses.length})` : ""}</Chip>
         <Chip active={vue === "reperes"} onClick={() => setVue("reperes")}>Repères</Chip>
       </div>
 
-      {/* ————— AUJOURD'HUI ————— */}
+      {/* ————— JOURNAL ————— */}
       {vue === "jour" && (
+        <div className="space-y-3">
+          <Card style={{ background: C.cardGrad }}>
+            <div className="flex items-center justify-between">
+              <button onClick={() => setJour(isoOf(new Date(new Date(jour + "T12:00:00").getTime() - 86400000)))} className="pl-tap rounded-lg px-2 py-1" style={{ background: C.card2, color: C.text }}>‹</button>
+              <div className="text-center">
+                <div className="font-black" style={{ ...DISPLAY, fontSize: 19 }}>{jour === todayISO() ? "Aujourd'hui" : fmtDate(jour)}</div>
+                {jourSeance && <div style={{ fontSize: 11, color: C.yellowDim }}>séance ce jour-là</div>}
+              </div>
+              <button onClick={() => { const n = isoOf(new Date(new Date(jour + "T12:00:00").getTime() + 86400000)); if (n <= todayISO()) setJour(n); }} disabled={jour >= todayISO()} className="pl-tap rounded-lg px-2 py-1" style={{ background: C.card2, color: jour >= todayISO() ? C.off : C.text }}>›</button>
+            </div>
+
+            <div className="flex justify-around mt-3">
+              {[["kcal", tot.kcal, obj.kcal, "kcal"], ["prot", Math.round(tot.prot), obj.prot, "g prot"], ["eau", tot.eau, obj.eau, "ml"]].map(([k, v, o, l]) => (
+                <div key={k} className="text-center">
+                  <Ring value={v} max={o} size={82} stroke={9} color={v > o * 1.15 && k !== "eau" ? C.amber : v >= o ? C.green : C.yellow}>
+                    <div className="font-black" style={{ ...DISPLAY, ...NUMS, fontSize: 17 }}>{v}</div>
+                    <div style={{ fontSize: 9, color: C.dim }}>/ {o}</div>
+                  </Ring>
+                  <div style={{ fontSize: 11, color: C.dim, marginTop: 2 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
+              <div className="text-xs font-bold mb-1" style={{ color: C.dim }}>À GARDER SOUS LE PLAFOND</div>
+              <BarreNut cle="na" v={tot.na} obj={obj.na} incomplet={inc.na} />
+              <BarreNut cle="k" v={tot.k} obj={obj.k} incomplet={inc.k} />
+              <BarreNut cle="p" v={tot.p} obj={obj.p} incomplet={inc.p} />
+            </div>
+
+            {(inc.na + inc.k + inc.p > 0) && (
+              <div className="rounded-xl px-3 py-2 mt-3 text-sm" style={{ background: C.warnBg, color: C.amber }}>
+                Certaines entrées n'ont pas toutes les valeurs (fréquent pour le potassium et le
+                phosphore des produits scannés). Les totaux marqués <b>+?</b> sont donc des minimums.
+              </div>
+            )}
+          </Card>
+
+          {/* Hydratation rapide */}
+          <Card>
+            <div className="font-bold mb-2">💧 Boire</div>
+            <div className="flex gap-2 flex-wrap">
+              {[["Verre d'eau", "eau", 250], ["Bouteille", "eau", 500], ["Çay", "cay", 150], ["Café", "cafe", 100]].map(([l, id, ml]) => (
+                <button key={l} onClick={() => ajoutRapideBoisson(ALIMENTS.find((a) => a.id === id), ml)} className="pl-tap rounded-xl px-3 py-2 text-sm font-semibold" style={{ background: C.card2, color: C.text, border: `1px solid ${C.hair}` }}>
+                  + {l} <span style={{ color: C.dim, ...NUMS }}>{ml} ml</span>
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          <div className="flex gap-2">
+            <button onClick={() => { setRecherche(""); setQAlim(""); setCatAlim("tout"); }} className="pl-tap flex-1 rounded-xl py-3 font-bold" style={{ background: C.yellow, color: C.onYellow }}>
+              + Ajouter
+            </button>
+            <button onClick={() => setScanOuvert(true)} className="pl-tap rounded-xl px-4 py-3 font-bold" style={{ background: C.card2, color: C.text, border: `1px solid ${C.hair}` }}>
+              ▦ Scanner
+            </button>
+            <button onClick={() => photoRef.current && photoRef.current.click()} disabled={photoBusy} className="pl-tap rounded-xl px-4 py-3 font-bold" style={{ background: C.card2, color: photoBusy ? C.dim : C.text, border: `1px solid ${C.hair}` }}>
+              {photoBusy ? "…" : "📷"}
+            </button>
+            <input ref={photoRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={(e) => { prendrePhoto(e.target.files && e.target.files[0]); e.target.value = ""; }} />
+          </div>
+
+          {/* Entrées du jour, groupées par moment */}
+          {!entrees.length && (
+            <Card>
+              <div className="font-bold mb-1">Rien de noté {jour === todayISO() ? "aujourd'hui" : "ce jour-là"}</div>
+              <div className="text-sm" style={{ color: C.dim }}>
+                Touche « Ajouter » pour chercher un aliment, « Scanner » pour lire un code-barres,
+                ou l'appareil photo pour garder une trace du plat.
+              </div>
+            </Card>
+          )}
+
+          {SOFRA_MOMENTS.filter((m) => entrees.some((e) => e.moment === m.id)).map((m) => {
+            const liste2 = entrees.filter((e) => e.moment === m.id);
+            const sous = totauxDe(liste2).t;
+            return (
+              <div key={m.id}>
+                <SectionLabel right={<span style={{ ...NUMS, fontSize: 11 }}>{sous.kcal} kcal · {Math.round(sous.prot)} g</span>}>{m.ic} {m.label}</SectionLabel>
+                <div className="space-y-2 mt-2">
+                  {liste2.map((e) => (
+                    <div key={e.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5" style={{ background: C.card, border: `1px solid ${C.line}` }}>
+                      {e.photoId && <PhotoThumb photoId={e.photoId} size={40} />}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold truncate" style={{ fontSize: 15 }}>{e.nom}</div>
+                        <div style={{ fontSize: 11, color: C.dim, ...NUMS }}>
+                          {e.detail}
+                          {e.n.kcal != null && ` · ${Math.round(e.n.kcal)} kcal`}
+                          {e.n.prot != null && ` · ${Math.round(e.n.prot)} g prot`}
+                          {e.eau > 0 && ` · ${e.eau} ml`}
+                        </div>
+                      </div>
+                      <button onClick={() => supprimerEntree(e.id)} className="pl-tap px-2 shrink-0" style={{ color: C.dim }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {entrees.length > 0 && (
+            <button onClick={() => copier(resumeJour(jour, entrees, tot, obj))} className="pl-tap w-full rounded-xl py-3 font-semibold" style={{ background: C.card2, color: C.text, border: `1px solid ${C.hair}` }}>
+              Copier la journée (pour Claude ou le néphrologue)
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ————— IDÉES (l'ancien « Aujourd'hui ») ————— */}
+      {vue === "idees" && (
         <div className="space-y-3">
           <Card style={{ background: C.cardGrad }}>
             <div className="font-black" style={{ ...DISPLAY, fontSize: 24 }}>{plan.titre}</div>
@@ -2271,14 +3389,14 @@ const SofraTab = ({ data, saveData, poidsCorps, conseil, faitAujourdhui }) => {
             <div className="flex items-center gap-2 mt-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
               <span style={{ fontSize: 18 }}>🎯</span>
               <div className="text-sm">
-                Repère du jour : <b style={NUMS}>{objProt} g</b> de protéines réparties sur la journée
+                Repère du jour : <b style={NUMS}>{obj.prot} g</b> de protéines réparties sur la journée
                 <span style={{ color: C.dim }}> ({poidsCorps} kg × 1,2)</span>
               </div>
             </div>
           </Card>
 
           {plan.slots.map((s, i) => {
-            const r = piocher(s.cat, (decal[s.cat + i] || 0));
+            const r = piocher(s.cat, decal[s.cat + i] || 0);
             return (
               <div key={s.cat + i}>
                 <CarteRecette r={r} label={s.label} />
@@ -2292,13 +3410,6 @@ const SofraTab = ({ data, saveData, poidsCorps, conseil, faitAujourdhui }) => {
               </div>
             );
           })}
-
-          <Card>
-            <div className="text-sm" style={{ color: C.dim }}>
-              Sofra ne compte pas ce que tu manges — il propose. Les idées suivent la séance
-              conseillée par PLATEAU et changent chaque jour.
-            </div>
-          </Card>
         </div>
       )}
 
@@ -2323,6 +3434,11 @@ const SofraTab = ({ data, saveData, poidsCorps, conseil, faitAujourdhui }) => {
             {!liste.length && <Card><div className="text-sm" style={{ color: C.dim }}>Rien ne correspond. Essaie un autre mot.</div></Card>}
           </div>
         </div>
+      )}
+
+      {/* ————— SUIVI ————— */}
+      {vue === "suivi" && (
+        <SuiviSofra data={data} obj={obj} periode={periode} setPeriode={setPeriode} nut={nutSuivi} setNut={setNutSuivi} />
       )}
 
       {/* ————— COURSES ————— */}
@@ -2359,6 +3475,50 @@ const SofraTab = ({ data, saveData, poidsCorps, conseil, faitAujourdhui }) => {
       {/* ————— REPÈRES ————— */}
       {vue === "reperes" && (
         <div className="space-y-3">
+          <Card>
+            <div className="flex items-center justify-between">
+              <div className="font-bold" style={{ fontSize: 17 }}>🎯 Mes objectifs</div>
+              <button onClick={() => setEditObj(!editObj)} className="pl-tap rounded-lg px-3 py-1.5 text-sm font-semibold" style={{ background: C.card2, color: C.text, border: `1px solid ${C.hair}` }}>
+                {editObj ? "Fermer" : "Modifier"}
+              </button>
+            </div>
+            {!editObj && (
+              <div className="mt-2 space-y-1 text-sm">
+                {[["kcal", obj.kcal], ["prot", obj.prot], ["na", obj.na], ["k", obj.k], ["p", obj.p], ["eau", obj.eau]].map(([k, v]) => (
+                  <div key={k} className="flex justify-between py-1" style={{ borderBottom: `1px solid ${C.hair}` }}>
+                    <span style={{ color: C.dim }}>{NUT_LABEL[k]}</span>
+                    <span style={NUMS}><b>{v}</b> {NUT_UNITE[k]}{(sofra.obj || {})[k] == null ? <span style={{ color: C.dim }}> {k === "kcal" || k === "prot" ? "(calculé)" : "(par défaut)"}</span> : null}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {editObj && (
+              <div className="mt-3 space-y-2">
+                {[["kcal", "Calories"], ["prot", "Protéines"], ["na", "Sodium max"], ["k", "Potassium max"], ["p", "Phosphore max"], ["eau", "Liquides"]].map(([k, l]) => (
+                  <div key={k} className="flex items-center gap-2">
+                    <div className="flex-1 text-sm">{l} <span style={{ color: C.dim }}>({NUT_UNITE[k]})</span></div>
+                    <input
+                      value={(sofra.obj || {})[k] == null ? "" : (sofra.obj || {})[k]}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/[^\d]/g, "");
+                        majSofra({ obj: Object.assign({}, sofra.obj || {}, { [k]: v === "" ? null : Number(v) }) });
+                      }}
+                      inputMode="numeric"
+                      placeholder={String(obj[k])}
+                      className="rounded-lg px-2 py-2 text-right"
+                      style={{ width: 96, background: C.card2, border: `1px solid ${C.line}`, color: C.text, ...NUMS }}
+                    />
+                  </div>
+                ))}
+                <div className="text-xs" style={{ color: C.dim }}>
+                  Champ vide = calculé automatiquement. Les plafonds par défaut (sodium 2 000,
+                  potassium 2 500, phosphore 1 000 mg) sont volontairement prudents —
+                  <b> mets les tiens, ceux que ton néphrologue t'a donnés.</b>
+                </div>
+              </div>
+            )}
+          </Card>
+
           {SOFRA_REPERES.map((b) => (
             <Card key={b.t}>
               <div className="font-bold mb-2" style={{ fontSize: 17 }}>{b.ic} {b.t}</div>
@@ -2371,6 +3531,143 @@ const SofraTab = ({ data, saveData, poidsCorps, conseil, faitAujourdhui }) => {
               </ul>
             </Card>
           ))}
+
+          {Object.keys(produits).length > 0 && (
+            <Card>
+              <div className="font-bold mb-2" style={{ fontSize: 17 }}>▦ Produits scannés</div>
+              <div className="text-xs mb-2" style={{ color: C.dim }}>
+                Gardés en mémoire : au prochain scan ils sont reconnus sans réseau.
+              </div>
+              {Object.keys(produits).map((c) => (
+                <div key={c} className="flex items-center justify-between py-1.5 text-sm" style={{ borderBottom: `1px solid ${C.hair}` }}>
+                  <span className="truncate flex-1">{produits[c].nom}</span>
+                  <button onClick={() => { const p = Object.assign({}, produits); delete p[c]; majSofra({ produits: p }); }} className="pl-tap px-2" style={{ color: C.dim }}>✕</button>
+                </div>
+              ))}
+            </Card>
+          )}
+
+          <Card style={{ background: C.warnBg }}>
+            <div className="text-sm">
+              <b>Les chiffres de Sofra sont indicatifs.</b> Ils viennent de tables de composition
+              moyennes et, pour les produits scannés, de la base collaborative Open Food Facts —
+              où le potassium et le phosphore sont souvent absents. Ça sert à repérer une tendance
+              sur la semaine, pas à piloter un traitement. Tes bilans sanguins et ton néphrologue
+              passent avant.
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ————— Feuille : chercher un aliment ————— */}
+      {recherche !== null && !ajout && !libre && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" style={{ background: C.bgAlt }}>
+          <div className="mx-auto p-4 pb-24" style={{ maxWidth: "28rem" }}>
+            <button onClick={() => setRecherche(null)} className="pl-tap mb-3 rounded-xl px-3 py-2 font-semibold" style={{ background: C.card2, color: C.text, border: `1px solid ${C.hair}` }}>
+              ← Retour
+            </button>
+            <div className="font-black" style={{ ...DISPLAY, fontSize: 26 }}>Ajouter</div>
+
+            <div className="flex gap-2 mt-3">
+              <button onClick={() => { setRecherche(null); setScanOuvert(true); }} className="pl-tap flex-1 rounded-xl py-3 font-semibold" style={{ background: C.card2, color: C.text, border: `1px solid ${C.hair}` }}>▦ Scanner</button>
+              <button onClick={() => setLibre({ nom: "", q: 1, moment: momentAuto(), photoId: null, n: { kcal: null, prot: null, gluc: null, lip: null, na: null, k: null, p: null } })} className="pl-tap flex-1 rounded-xl py-3 font-semibold" style={{ background: C.card2, color: C.text, border: `1px solid ${C.hair}` }}>✎ Saisie libre</button>
+            </div>
+
+            <input
+              value={qAlim}
+              onChange={(e) => setQAlim(e.target.value)}
+              placeholder="Poulet, riz, yaourt, çay…"
+              className="w-full rounded-xl px-3 py-3 mt-3"
+              style={{ background: C.card, border: `1px solid ${C.line}`, color: C.text }}
+            />
+            <div className="flex gap-2 overflow-x-auto pb-1 mt-2" style={{ scrollbarWidth: "none" }}>
+              {ALIM_CATS.map((c) => (
+                <Chip key={c.id} active={catAlim === c.id} onClick={() => setCatAlim(c.id)}>{c.label}</Chip>
+              ))}
+            </div>
+
+            {/* Les recettes de Sofra sont ajoutables telles quelles */}
+            {catAlim === "tout" && RECETTES.filter((r) => qAlim.trim() && sansAccent(r.nom).indexOf(sansAccent(qAlim)) !== -1).map((r) => (
+              <div key={r.id} onClick={() => setAjout({ item: { nom: r.nom, u: "portion", n: RECETTE_NUT[r.id] || [null, r.prot, null, null, null, null, null], pf: [["1 portion", 1]] }, q: 1, moment: momentAuto(), photoId: null })}
+                className="pl-tap flex items-center justify-between rounded-xl px-3 py-3 mt-2" style={{ background: C.card, border: `1px solid ${C.line}` }}>
+                <div><div className="font-semibold text-sm">{r.nom}</div><div style={{ fontSize: 11, color: C.dim }}>Recette Sofra · 1 portion</div></div>
+                <div style={{ ...NUMS, fontSize: 12, color: C.dim }}>{RECETTE_NUT[r.id] ? RECETTE_NUT[r.id][0] + " kcal" : ""}</div>
+              </div>
+            ))}
+
+            <div className="space-y-2 mt-2">
+              {listeAlim.map((a) => (
+                <div key={a.id || a.code} onClick={() => setAjout({ item: a, q: (a.pf && a.pf[0] && a.pf[0][1]) || 100, moment: momentAuto(), photoId: null })}
+                  className="pl-tap flex items-center justify-between gap-2 rounded-xl px-3 py-3" style={{ background: C.card, border: `1px solid ${C.line}` }}>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-sm truncate">{a.nom}{a.marque ? <span style={{ color: C.dim }}> · {a.marque}</span> : null}</div>
+                    <div style={{ fontSize: 11, color: C.dim, ...NUMS }}>
+                      {a.n[0] == null ? "valeurs incomplètes" : a.n[0] + " kcal"} · {a.n[1] == null ? "?" : a.n[1]} g prot / 100 {a.u}
+                    </div>
+                  </div>
+                  <PastilleFlag f={a.f} />
+                </div>
+              ))}
+              {!listeAlim.length && <Card><div className="text-sm" style={{ color: C.dim }}>Rien trouvé. Utilise « Saisie libre » ou scanne le produit.</div></Card>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ————— Feuille : quantité + moment ————— */}
+      {ajout && (
+        <FeuilleQuantite
+          ajout={ajout}
+          setAjout={setAjout}
+          onValider={(quantite, moment) => {
+            ajouterEntree(entreeDepuis(ajout.item, quantite, moment, ajout.photoId));
+            setAjout(null); setRecherche(null); setVue("jour");
+          }}
+        />
+      )}
+
+      {/* ————— Feuille : saisie libre / photo ————— */}
+      {libre && (
+        <FeuilleLibre
+          libre={libre}
+          setLibre={setLibre}
+          texteClaude={texteClaude}
+          onPartager={partagerPhoto}
+          onCopier={copier}
+          onValider={(e) => { ajouterEntree(e); setLibre(null); setRecherche(null); setVue("jour"); }}
+        />
+      )}
+
+      {/* ————— Scanner ————— */}
+      {scanOuvert && <ScannerCB onCode={traiterCode} onFermer={() => setScanOuvert(false)} />}
+
+      {scanEtat && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-5" style={{ background: "rgba(0,0,0,.45)" }}>
+          <Card style={{ maxWidth: 340 }}>
+            {scanEtat.chargement && <div className="text-sm">Recherche du produit <b style={NUMS}>{scanEtat.code}</b>…</div>}
+            {scanEtat.err === "inconnu" && (
+              <div className="text-sm">
+                <b>Produit inconnu.</b> Le code <b style={NUMS}>{scanEtat.code}</b> n'est pas dans Open Food Facts.
+                Tu peux le saisir à la main — il sera gardé pour les prochaines fois.
+              </div>
+            )}
+            {scanEtat.err === "reseau" && (
+              <div className="text-sm">
+                <b>Pas de réseau.</b> Le scan a besoin d'Internet pour identifier un produit inconnu.
+                Les produits déjà scannés, eux, restent reconnus hors-ligne.
+              </div>
+            )}
+            <div className="flex gap-2 mt-3">
+              {scanEtat.err && (
+                <button onClick={() => { setScanEtat(null); setLibre({ nom: "", q: 100, moment: momentAuto(), photoId: null, code: scanEtat.code, n: { kcal: null, prot: null, gluc: null, lip: null, na: null, k: null, p: null } }); }} className="pl-tap flex-1 rounded-xl py-2.5 font-bold" style={{ background: C.yellow, color: C.onYellow }}>
+                  Saisir à la main
+                </button>
+              )}
+              <button onClick={() => setScanEtat(null)} className="pl-tap flex-1 rounded-xl py-2.5 font-semibold" style={{ background: C.card2, color: C.text, border: `1px solid ${C.hair}` }}>
+                Fermer
+              </button>
+            </div>
+          </Card>
         </div>
       )}
 
@@ -2393,6 +3690,23 @@ const SofraTab = ({ data, saveData, poidsCorps, conseil, faitAujourdhui }) => {
               ))}
             </div>
 
+            {RECETTE_NUT[rec.id] && (
+              <Card className="mt-3">
+                <div className="font-bold mb-2">Par portion</div>
+                <div className="grid grid-cols-2 gap-x-4">
+                  {NUT_CLES.map((c, i) => (
+                    <div key={c} className="flex justify-between text-sm py-1" style={{ borderBottom: `1px solid ${C.hair}` }}>
+                      <span style={{ color: C.dim }}>{NUT_LABEL[c]}</span>
+                      <span style={NUMS}>{RECETTE_NUT[rec.id][i]} {NUT_UNITE[c]}</span>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => setAjout({ item: { nom: rec.nom, u: "portion", n: RECETTE_NUT[rec.id], pf: [["1 portion", 1]] }, q: 1, moment: momentAuto(), photoId: null })} className="pl-tap w-full rounded-xl py-3 mt-3 font-bold" style={{ background: C.yellow, color: C.onYellow }}>
+                  J'ai mangé ça
+                </button>
+              </Card>
+            )}
+
             <Card className="mt-3">
               <div className="font-bold mb-2">Ingrédients</div>
               {rec.ing.map((i) => (
@@ -2400,7 +3714,7 @@ const SofraTab = ({ data, saveData, poidsCorps, conseil, faitAujourdhui }) => {
                   <span>{i[0]}</span><span style={{ color: C.dim, ...NUMS }}>{i[1]}</span>
                 </div>
               ))}
-              <button onClick={() => { ajouterCourses(rec); setOuverte(null); setVue("courses"); }} className="pl-tap w-full rounded-xl py-3 mt-3 font-bold" style={{ background: C.yellow, color: C.onYellow }}>
+              <button onClick={() => { ajouterCourses(rec); setOuverte(null); setVue("courses"); }} className="pl-tap w-full rounded-xl py-3 mt-3 font-bold" style={{ background: C.card2, color: C.text, border: `1px solid ${C.hair}` }}>
                 Ajouter aux courses
               </button>
             </Card>
