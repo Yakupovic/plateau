@@ -228,10 +228,13 @@ const PALETTE_CLAIR = {
   onYellow: "#111",
   // texte posé sur un fond jaune
   text: "#211f1a",
-  dim: "#726c5e",
+  dim: "#6b6455",
+  // 4,97:1 sur card2 (etait 4,42 : sous le seuil AA)
   dim2: "#6a6a73",
-  green: "#178a4c",
-  red: "#c93a2e",
+  green: "#0f6f3c",
+  // 5,29:1 en texte, 6,25:1 en blanc dessus (l ancien echouait des deux cotes)
+  red: "#bd3428",
+  // 4,97:1 sur errBg (etait 4,43)
   amber: "#b45309",
   warnBg: "#fff6e0",
   errBg: "#fbeceb",
@@ -241,9 +244,17 @@ const PALETTE_CLAIR = {
   disque: "radial-gradient(circle at 30% 25%, #f3f0e6, #e7e3d6)",
   // silhouette : du muscle non travaillé au muscle bien chargé
   m0: "#e6e1d2",
-  m1: "#dfd7bd",
+  m1: "#e8e0c0",
   m2: "#e9dba3",
   m3: "#f2d066",
+  // Heatmap : rampe dediee, strictement decroissante en luminance.
+  // Avant, elle finissait sur yellowHi, PLUS CLAIR que la case vide :
+  // le meilleur jour du semestre et un jour de repos etaient a 1,02:1.
+  h0: "#efece3",
+  h1: "#ffe27a",
+  h2: "#f5c518",
+  h3: "#dfa900",
+  h4: "#b87d00",
   // schémas de mouvement
   schMachine: "#4a4a54",
   schBody: "#232128",
@@ -251,7 +262,7 @@ const PALETTE_CLAIR = {
   schArrow: "#8a5b00",
   // badges de niveau
   nivAvance: "#7c5cd6",
-  nivInter: "#178a4c",
+  nivInter: "#0f6f3c",
   nivNovice: "#8a5b00",
   nivDebut: "#5b6472",
   medArgent: "#b8bdc7",
@@ -261,7 +272,7 @@ const PALETTE_CLAIR = {
   glassSoft: "rgba(255,255,255,.55)",
   inset: "rgba(255,255,255,.6)",
   onGreen: "#ffffff",
-  off: "#c4bdab" // commande désactivée : discrète mais encore visible
+  off: "#a89f8b" // commande désactivée : discrète mais encore visible (2,39:1 ; à 1,70 elle disparaissait)
 };
 const PALETTE_SOMBRE = {
   bg: "#101014",
@@ -293,6 +304,11 @@ const PALETTE_SOMBRE = {
   m1: "#3d3a2e",
   m2: "#5c5330",
   m3: "#a88a25",
+  h0: "#2c2c34",
+  h1: "#5c5330",
+  h2: "#a88a25",
+  h3: "#f5c518",
+  h4: "#ffe27a",
   schMachine: "#8b8b99",
   schBody: "#d5d2e0",
   schGhost: "#5a5766",
@@ -552,6 +568,52 @@ const echauffementPour = cible => {
   return p ? p.map(s => `${fmtKg(s.poids)}×${s.reps}`).join(" → ") : "1 série légère × 15";
 };
 const epley = (p, r) => p * (1 + r / 30);
+
+// ————— Progression : le 1RM estime comme monnaie commune —————
+// Passer de 40 kg x 8 a 40 kg x 12 est une vraie progression, mais la charge
+// n'a pas bouge. Sans ce calcul l'app est aveugle a la moitie des progres,
+// et c'est justement le levier principal quand on s'entraine sur machines.
+const REPS_MIN = 8,
+  REPS_MAX = 12;
+const fourchetteDe = (d, nom) => {
+  const o = (d && d.objectifsExo || {})[(nom || "").toLowerCase()];
+  const min = o && o.repsMin ? o.repsMin : REPS_MIN;
+  const max = o && o.repsMax ? o.repsMax : REPS_MAX;
+  return {
+    min: min,
+    max: max
+  };
+};
+// Meilleure serie de l'exo, convertie en 1RM estime.
+const e1RMDe = e => {
+  if (!e || e.type === "cardio" || !e.poids) return 0;
+  if (e.sets && e.sets.length) {
+    return e.sets.reduce((m, st) => Math.max(m, epley(st.poids || 0, st.reps || 0)), 0);
+  }
+  return epley(e.poids, e.reps || 0);
+};
+// Reps tenues a la serie la plus lourde (c'est elle qui compte pour progresser).
+const repsUtiles = e => {
+  if (!e) return 0;
+  if (e.sets && e.sets.length) {
+    let best = e.sets[0];
+    e.sets.forEach(st => {
+      if ((st.poids || 0) > (best.poids || 0)) best = st;
+    });
+    return best.reps || 0;
+  }
+  return e.reps || 0;
+};
+const resumeSeries = e => {
+  if (!e) return "";
+  if (e.sets && e.sets.length) {
+    const reps = e.sets.map(st => st.reps || 0);
+    const tous = reps.every(r => r === reps[0]);
+    return tous ? `${reps.length}x${reps[0]}` : reps.join("-");
+  }
+  if (e.series && e.reps) return `${e.series}x${e.reps}`;
+  return "";
+};
 const brzycki = (p, r) => r >= 37 ? p : p * (36 / (37 - r));
 const titreFun = s => {
   const nbPr = s.exos.filter(e => e.pr).length;
@@ -631,6 +693,7 @@ const variantesPour = nom => {
   const alternatives = ["haltères", "poulie", "machine guidée"].filter(eq => eq !== present);
   return alternatives.slice(0, 3).map(eq => `${base} ${eq}`);
 };
+const PLATEAU_SEANCES = 4; // seuil partage par la detection ET par les messages
 const stagnationsDe = d => {
   const parExo = {};
   d.seances.forEach(s => s.exos.forEach(e => {
@@ -642,17 +705,24 @@ const stagnationsDe = d => {
     }).hist.push(e);
   }));
   return Object.values(parExo).filter(x => {
-    if (x.hist.length < 3) return false;
-    const l3 = x.hist.slice(-3);
-    return l3.every(e => e.poids === l3[0].poids) && l3.slice(-2).some(e => e.ressenti === "tirait");
+    if (x.hist.length < PLATEAU_SEANCES) return false;
+    // Plateau = aucun nouveau record de 1RM estime sur les 4 dernieres fois.
+    // L'ancienne regle exigeait 3 charges identiques ET un « ca tirait » : le
+    // ressenti etant facultatif (et absent en mode serie par serie), elle ne
+    // se declenchait quasiment jamais.
+    const l4 = x.hist.slice(-PLATEAU_SEANCES);
+    const reference = e1RMDe(l4[0]);
+    if (!reference) return false;
+    return l4.slice(1).every(e => e1RMDe(e) <= reference * 1.01);
   }).map(x => ({
     nom: x.nom,
-    poids: x.hist[x.hist.length - 1].poids
+    poids: x.hist[x.hist.length - 1].poids,
+    seances: PLATEAU_SEANCES
   }));
 };
 const stagText = d => {
   const st = stagnationsDe(d);
-  return st.length ? `Exercices en plateau (3 séances à la même charge avec "ça tirait") : ${st.map(s => `${s.nom} à ${fmtKg(s.poids)} kg`).join(", ")}. Propose une stratégie de déblocage quand c'est pertinent (deload -10 %, tempo, ou variante).` : "";
+  return st.length ? `Exercices en plateau (aucun progrès, charge ou reps, sur les ${PLATEAU_SEANCES} dernières séances) : ${st.map(s => `${s.nom} à ${fmtKg(s.poids)} kg`).join(", ")}. Propose une stratégie de déblocage quand c'est pertinent (deload -10 %, tempo, ou variante).` : "";
 };
 const ciblesText = d => {
   const c = d.ciblesMuscles || {};
@@ -679,8 +749,17 @@ const echauffementPourSeance = nom => {
 const CYCLE_SEMAINES = 4;
 const cycleDe = d => {
   const debut = d.cycleDebut || d.seances && d.seances[0] && d.seances[0].date || todayISO();
-  const jours = Math.max(0, Math.floor((new Date(todayISO()) - new Date(debut)) / 86400000));
-  const semTotal = Math.floor(jours / 7) + 1;
+  // Le cycle avance sur les semaines OU IL S'EST ENTRAINE, pas sur le calendrier.
+  // Sinon, apres deux semaines sans salle il revient frais et l'app le met en
+  // semaine allegee (-10 % sur tout) : exactement l'inverse de ce qu'il faut.
+  const semaines = {};
+  (d.seances || []).forEach(sc => {
+    if (sc.date >= debut) semaines[mondayOf(sc.date)] = 1;
+  });
+  let semTotal = Object.keys(semaines).length;
+  const semaineEnCours = mondayOf(todayISO());
+  if (!semaines[semaineEnCours]) semTotal += 1; // la semaine courante compte des maintenant
+  if (semTotal < 1) semTotal = 1;
   const sem = (semTotal - 1) % CYCLE_SEMAINES + 1;
   return {
     debut,
@@ -3018,12 +3097,12 @@ function Heatmap({
   }
   const teinte = (t, futur) => {
     if (futur) return "transparent";
-    if (!t) return C.m0;
+    if (!t) return C.h0;
     const r = t / maxT;
-    if (r >= 0.75) return C.yellowHi;
-    if (r >= 0.45) return C.yellow;
-    if (r >= 0.2) return C.m3;
-    return C.m2;
+    if (r >= 0.75) return C.h4;
+    if (r >= 0.45) return C.h3;
+    if (r >= 0.2) return C.h2;
+    return C.h1;
   };
   return /*#__PURE__*/React.createElement("div", {
     className: "overflow-x-auto pb-1",
@@ -3286,6 +3365,9 @@ const PrBadge = () => /*#__PURE__*/React.createElement("span", {
 // ————— App —————
 function App() {
   const [loaded, setLoaded] = useState(false);
+  const [corrompu, setCorrompu] = useState(null); // donnees illisibles mises de cote au demarrage
+  const [quotaPlein, setQuotaPlein] = useState(false);
+  const bloque = useRef(false); // vrai quand on refuse d'ecrire (donnees en quarantaine)
   const [, forcerRendu] = useState(0);
   const [data, setData] = useState(SEED_DATA);
   const [tab, setTab] = useState("accueil");
@@ -3426,17 +3508,47 @@ function App() {
     (async () => {
       let d = SEED_DATA;
       let ok = false;
+      let abime = null;
       if (window.storage) {
+        // On lit d'abord la chaine BRUTE. Si elle est illisible, on la met de cote
+        // au lieu de la remplacer par le seed : c'est peut-etre des mois de carnet,
+        // et une donnee tronquee reste souvent recuperable a la main.
+        let brut = null;
         try {
           const r = await window.storage.get("plateau-data");
-          d = JSON.parse(r.value);
-          ok = true;
+          brut = r.value;
         } catch {
+          brut = null;
+        }
+        if (brut == null) {
           try {
             await window.storage.set("plateau-data", JSON.stringify(d));
             ok = true;
           } catch {
             ok = false;
+          }
+        } else {
+          let parse;
+          try {
+            parse = JSON.parse(brut);
+          } catch {
+            parse = undefined;
+          }
+          if (parse && typeof parse === "object" && Array.isArray(parse.seances)) {
+            d = parse;
+            ok = true;
+          } else {
+            const cle = "plateau-data-abime-" + Date.now();
+            try {
+              await window.storage.set(cle, brut);
+            } catch {}
+            abime = {
+              cle: cle,
+              taille: brut.length,
+              brut: brut.slice(0, 400)
+            };
+            bloque.current = true; // plus aucune ecriture tant que ce n'est pas tranche
+            ok = true;
           }
         }
         try {
@@ -3459,6 +3571,11 @@ function App() {
         } catch {}
       }
       setStorageOk(ok);
+      if (abime) {
+        setCorrompu(abime);
+        setLoaded(true);
+        return;
+      }
       const avant = JSON.stringify(d.seances || []);
       d = migrerNoms(d);
       if (JSON.stringify(d.seances || []) !== avant && window.storage) {
@@ -3631,7 +3748,7 @@ function App() {
     setData(next);
     dataRef.current = next;
     scheduleAutoCopie();
-    if (!window.storage) return;
+    if (!window.storage || bloque.current) return;
     if (dataTimer.current) clearTimeout(dataTimer.current);
     dataTimer.current = setTimeout(() => {
       dataTimer.current = null;
@@ -3641,11 +3758,80 @@ function App() {
       }).catch(() => setStorageOk(false));
     }, 600);
   };
+  // Quota plein : les photos sont illustratives, le carnet ne l'est pas.
+  // On sacrifie les blobs orphelins (puis les plus anciens) pour sauver la saisie.
+  const libererPlace = async () => {
+    if (!window.storage || !window.storage.list) return false;
+    try {
+      const rep = await window.storage.list("plateau-photo-");
+      const keys = rep && rep.keys || [];
+      if (!keys.length) return false;
+      const utilises = {};
+      const d = dataRef.current || {};
+      (d.seances || []).forEach(sc => (sc.exos || []).forEach(e => {
+        if (e.photoId) utilises["plateau-photo-" + e.photoId] = 1;
+      }));
+      (d.photosCorps || []).forEach(p => {
+        if (p.photoId) utilises["plateau-photo-" + p.photoId] = 1;
+      });
+      const c = currentRef.current;
+      if (c) {
+        (c.exos || []).forEach(e => {
+          if (e.photoId) utilises["plateau-photo-" + e.photoId] = 1;
+        });
+        if (c.exoEnCours && c.exoEnCours.photoId) utilises["plateau-photo-" + c.exoEnCours.photoId] = 1;
+      }
+      let cibles = keys.filter(k => !utilises[k]);
+      if (!cibles.length) cibles = keys.slice(0, Math.max(1, Math.ceil(keys.length / 4)));
+      for (let i = 0; i < cibles.length; i++) {
+        try {
+          await window.storage.delete(cibles[i]);
+        } catch {}
+      }
+      return cibles.length > 0;
+    } catch {
+      return false;
+    }
+  };
+
+  // Ecriture immediate, et surtout REELLEMENT attendable : le debounce de
+  // saveData rend la main tout de suite, son `await` ne garantit rien.
+  const ecrireDataMaintenant = async next => {
+    if (bloque.current) return false;
+    if (next) {
+      setData(next);
+      dataRef.current = next;
+    }
+    if (!window.storage) return false;
+    if (dataTimer.current) {
+      clearTimeout(dataTimer.current);
+      dataTimer.current = null;
+    }
+    try {
+      await window.storage.set("plateau-data", JSON.stringify(dataRef.current));
+      setStorageOk(true);
+      flashSaved();
+      return true;
+    } catch (err) {
+      if (await libererPlace()) {
+        try {
+          await window.storage.set("plateau-data", JSON.stringify(dataRef.current));
+          setStorageOk(true);
+          flashSaved();
+          setQuotaPlein(true);
+          return true;
+        } catch {}
+      }
+      setQuotaPlein(true);
+      setStorageOk(false);
+      return false;
+    }
+  };
   const saveCurrent = async cur => {
     setCurrent(cur);
     currentRef.current = cur;
     scheduleAutoCopie();
-    if (!window.storage) return;
+    if (!window.storage || bloque.current) return;
     if (curTimer.current) clearTimeout(curTimer.current);
     if (cur == null) {
       curTimer.current = null;
@@ -3662,6 +3848,7 @@ function App() {
   };
   useEffect(() => {
     const flush = () => {
+      if (bloque.current) return;
       if (dataTimer.current) {
         clearTimeout(dataTimer.current);
         dataTimer.current = null;
@@ -3766,12 +3953,20 @@ function App() {
       if (e.nom.toLowerCase() === nom.toLowerCase()) out.push({
         date: s.date,
         poids: e.poids,
-        ressenti: e.ressenti
+        ressenti: e.ressenti,
+        series: e.series,
+        reps: e.reps,
+        sets: e.sets,
+        e1rm: e1RMDe(e)
       });
     }));
     return out.slice(-3);
   };
   const incrementFor = e => e.parBras && e.poids <= 12 ? 2 : 2.5;
+  // Double progression : on monte les reps dans une fourchette, puis la charge.
+  // Avant, la charge ne montait QUE si on avait pense a taper « De la marge » —
+  // un bouton facultatif, absent du mode serie par serie. Un oubli suffisait a
+  // figer la charge indefiniment, seance apres seance.
   const suggestionFor = nom => {
     const last = lastOf(nom);
     if (!last) return null;
@@ -3783,13 +3978,31 @@ function App() {
         deload: true
       };
     }
-    if (last.ressenti === "marge") {
-      return {
-        last,
-        cible: Math.round((last.poids + incrementFor(last)) * 10) / 10,
-        monte: true
-      };
-    }
+    const f = fourchetteDe(data, nom);
+    const reps = repsUtiles(last);
+    const monter = {
+      last,
+      cible: Math.round((last.poids + incrementFor(last)) * 10) / 10,
+      monte: true,
+      reprendreA: f.min
+    };
+    // Raccourci historique : s'il a explicitement dit qu'il avait de la marge, on monte.
+    if (last.ressenti === "marge") return monter;
+    if (reps >= f.max) return monter; // haut de fourchette atteint
+    if (reps > 0 && reps < f.min) return {
+      last,
+      cible: last.poids,
+      monte: false,
+      sousFourchette: true,
+      viser: f.min
+    };
+    if (reps > 0) return {
+      last,
+      cible: last.poids,
+      monte: false,
+      viserReps: reps + 1,
+      fourchette: f
+    };
     return {
       last,
       cible: last.poids,
@@ -3800,9 +4013,22 @@ function App() {
   // allégée, où la cible est plus basse. On dit maintenant ce qu'il faut faire de la charge.
   const texteCharge = sg => {
     if (!sg) return "";
-    if (sg.monte) return `monte à ${fmtKg(sg.cible)} kg`;
+    if (sg.monte) return `monte à ${fmtKg(sg.cible)} kg` + (sg.reprendreA ? ` (repars à ${sg.reprendreA} reps)` : "");
     if (sg.deload) return `allège à ${fmtKg(sg.cible)} kg (semaine allégée)`;
+    if (sg.sousFourchette) return `garde ${fmtKg(sg.cible)} kg, remonte à ${sg.viser} reps`;
+    if (sg.viserReps) return `garde ${fmtKg(sg.cible)} kg, vise ${sg.viserReps} reps`;
     return `garde ${fmtKg(sg.cible)} kg`;
+  };
+
+  // Meilleur 1RM estime realise avant aujourd'hui sur cet exo.
+  const meilleurE1RMAvant = nom => {
+    if (!nom || !nom.trim()) return 0;
+    const cible = nom.trim().toLowerCase();
+    let best = 0;
+    data.seances.forEach(sc => sc.exos.forEach(e => {
+      if (e.nom.toLowerCase() === cible && e.type !== "cardio") best = Math.max(best, e1RMDe(e));
+    }));
+    return best;
   };
   const bestBefore = nom => {
     const all = [...data.seances.flatMap(s => s.exos), ...(current ? current.exos : [])].filter(e => e.nom.toLowerCase() === nom.toLowerCase()).map(e => e.poids);
@@ -4074,7 +4300,12 @@ function App() {
       return;
     }
     const prevBest = bestBefore(fNom.trim());
-    const pr = prevBest != null && poids > prevBest;
+    // Un record peut etre un record de CHARGE ou un record de reps a charge
+    // egale (le 1RM estime monte). Sur machines a paliers de 5 kg, le second
+    // est de loin le plus frequent — l'ignorer rendait l'app aveugle.
+    const e1rmAvant = meilleurE1RMAvant(fNom);
+    const e1rmMtn = epley(poids, Number(fReps) || 0);
+    const pr = prevBest != null && poids > prevBest || e1rmAvant > 0 && e1rmMtn > e1rmAvant * 1.01;
     const at = Date.now();
     const prevAt = current.exos.length ? current.exos[current.exos.length - 1].at || current.startedAt : current.startedAt;
     const exo = {
@@ -4190,7 +4421,9 @@ function App() {
     const memesPoids = ec.sets.every(s => s.poids === ec.sets[0].poids);
     const memesReps = ec.sets.every(s => s.reps === ec.sets[0].reps);
     const prevBest = bestBefore(ec.nom);
-    const pr = prevBest != null && poidsMax > prevBest;
+    const e1rmAvant = meilleurE1RMAvant(ec.nom);
+    const e1rmMtn = ec.sets.reduce((m, st) => Math.max(m, epley(st.poids || 0, st.reps || 0)), 0);
+    const pr = prevBest != null && poidsMax > prevBest || e1rmAvant > 0 && e1rmMtn > e1rmAvant * 1.01;
     const at = Date.now();
     const prevAt = cur0.exos.length ? cur0.exos[cur0.exos.length - 1].at || cur0.startedAt : cur0.startedAt;
     const exo = {
@@ -4307,16 +4540,19 @@ function App() {
       ...next,
       prochaine: null
     };
-    next = {
-      ...next,
-      dernierExport: todayISO()
-    };
     try {
       await navigator.clipboard.writeText(JSON.stringify(next, null, 2));
       setFinJsonCopie(true);
       setTimeout(() => setFinJsonCopie(false), 9000);
     } catch {}
-    await saveData(next);
+    // La seance doit etre DANS plateau-data avant qu'on efface plateau-current :
+    // sinon il existe une fenetre ou elle n'est nulle part, et iOS peut tuer
+    // l'onglet pile a ce moment-la (ecran verrouille, telephone range).
+    const ecrit = await ecrireDataMaintenant(next);
+    if (!ecrit) {
+      window.alert("La seance n'a PAS pu etre enregistree (memoire du telephone pleine ?).\n\n" + "Elle reste ouverte, rien n'est perdu. Va dans Mes donnees pour faire une " + "sauvegarde, puis termine-la.");
+      return;
+    }
     await saveCurrent(null);
     resetForm();
     setRest(null);
@@ -5447,12 +5683,13 @@ function App() {
   };
   const exporter = async () => {
     const txt = JSON.stringify(exportPayload(), null, 2);
-    saveData({
-      ...data,
-      dernierExport: todayISO()
-    });
     try {
       await navigator.clipboard.writeText(txt);
+      // Marque APRES la copie reussie : avant, un echec passait pour une sauvegarde.
+      saveData({
+        ...data,
+        dernierExport: todayISO()
+      });
       setCopieOk(true);
       setExportText(null);
       setTimeout(() => setCopieOk(false), 2500);
@@ -5476,6 +5713,10 @@ function App() {
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 2000);
+      saveData({
+        ...data,
+        dernierExport: todayISO()
+      }); // le seul export vraiment durable
     } catch {
       window.alert("Chiffrement impossible sur ce navigateur.");
     }
@@ -5504,6 +5745,10 @@ function App() {
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
+    saveData({
+      ...data,
+      dernierExport: todayISO()
+    });
   };
   const importer = async () => {
     try {
@@ -5606,6 +5851,85 @@ function App() {
         color: C.dim
       }
     }, "Chargement\u2026");
+  }
+
+  // Donnees illisibles : on ne demarre PAS par-dessus. Elles sont gardees
+  // telles quelles et c'est l'utilisateur qui tranche.
+  if (corrompu) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "min-h-screen p-5",
+      style: {
+        background: C.bg,
+        color: C.text
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "mx-auto",
+      style: {
+        maxWidth: "28rem"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "font-black",
+      style: {
+        ...DISPLAY,
+        fontSize: 28,
+        lineHeight: 1.1
+      }
+    }, "Tes donn\xE9es n'ont pas pu \xEAtre lues"), /*#__PURE__*/React.createElement(Card, {
+      className: "mt-4"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-sm"
+    }, "PLATEAU n'a pas r\xE9ussi \xE0 relire ton carnet. ", /*#__PURE__*/React.createElement("b", null, "Rien n'a \xE9t\xE9 effac\xE9 :"), " le contenu d'origine est conserv\xE9 de c\xF4t\xE9 (", corrompu.taille, " caract\xE8res), sous la cl\xE9", " ", /*#__PURE__*/React.createElement("code", {
+      style: {
+        ...NUMS,
+        fontSize: 11
+      }
+    }, corrompu.cle), "."), /*#__PURE__*/React.createElement("div", {
+      className: "text-sm mt-2",
+      style: {
+        color: C.dim
+      }
+    }, "Le plus s\xFBr : restaure ta derni\xE8re sauvegarde. Si tu n'en as pas, copie le contenu brut ci-dessous et envoie-le \xE0 Claude \u2014 une donn\xE9e tronqu\xE9e se r\xE9pare souvent.")), /*#__PURE__*/React.createElement(Card, {
+      className: "mt-3"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "font-bold mb-1",
+      style: {
+        fontSize: 13
+      }
+    }, "D\xE9but du contenu conserv\xE9"), /*#__PURE__*/React.createElement("pre", {
+      className: "text-xs overflow-x-auto",
+      style: {
+        color: C.dim,
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-all"
+      }
+    }, corrompu.brut)), /*#__PURE__*/React.createElement("button", {
+      onClick: async () => {
+        try {
+          const r = await window.storage.get(corrompu.cle);
+          await navigator.clipboard.writeText(r.value);
+          window.alert("Contenu copié.");
+        } catch {
+          window.alert("Copie impossible ici.");
+        }
+      },
+      className: "pl-tap w-full rounded-xl py-3 mt-3 font-bold",
+      style: {
+        background: C.yellow,
+        color: C.onYellow
+      }
+    }, "Copier tout le contenu conserv\xE9"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        if (!window.confirm("Repartir d'un carnet vide ?\n\nLa copie de tes anciennes données reste conservée sur le téléphone, mais l'app démarrera à zéro.")) return;
+        bloque.current = false;
+        window.storage.set("plateau-data", JSON.stringify(SEED_DATA)).then(() => window.location.reload()).catch(() => window.alert("Écriture impossible."));
+      },
+      className: "pl-tap w-full rounded-xl py-3 mt-2 font-semibold",
+      style: {
+        background: C.card2,
+        color: C.red,
+        border: `1px solid ${C.hair}`
+      }
+    }, "Repartir de z\xE9ro")));
   }
 
   // ————— Rendu —————
@@ -5783,7 +6107,7 @@ function App() {
       border: `1px solid ${C.red}`,
       color: C.red
     }
-  }, "Stockage inaccessible (navigation priv\xE9e ?). Active \xAB Copie auto \xBB dans Mes donn\xE9es pour garder une sauvegarde dans ton presse-papier."), tab === "accueil" && /*#__PURE__*/React.createElement("div", {
+  }, quotaPlein ? "Mémoire du téléphone pleine — les photos les plus anciennes ont été supprimées pour sauver ton carnet. Fais une sauvegarde dans Mes données." : "Stockage inaccessible (navigation privée ?). Active « Copie auto » dans Mes données pour garder une sauvegarde dans ton presse-papier."), tab === "accueil" && /*#__PURE__*/React.createElement("div", {
     className: "pl-anim",
     style: {
       display: "flex",
@@ -6361,7 +6685,7 @@ function App() {
     style: {
       color: C.dim
     }
-  }, "\u2696\uFE0F ", dernierPoids ? `Dernière pesée il y a ${joursDepuis(dernierPoids.date)} j` : "Aucune pesée enregistrée", " \u2014 passe sur la balance \u2192"), data.seances.length > 0 && (!data.dernierExport || joursDepuis(data.dernierExport) >= 14) && /*#__PURE__*/React.createElement("button", {
+  }, "\u2696\uFE0F ", dernierPoids ? `Dernière pesée il y a ${joursDepuis(dernierPoids.date)} j` : "Aucune pesée enregistrée", " \u2014 passe sur la balance \u2192"), data.seances.length > 0 && (!data.dernierExport || joursDepuis(data.dernierExport) >= 7) && /*#__PURE__*/React.createElement("button", {
     onClick: () => setReglagesOuvert(true),
     className: "w-full text-left text-xs px-1",
     style: {
@@ -7323,7 +7647,7 @@ function App() {
     size: 16
   }), /*#__PURE__*/React.createElement("span", {
     style: {
-      fontSize: 9
+      fontSize: 11
     }
   }, "ajouter")), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 min-w-0"
@@ -7357,7 +7681,7 @@ function App() {
       border: `1px solid ${sugg.monte ? C.yellow : C.line}`,
       ...NUMS
     }
-  }, "Derni\xE8re fois : ", /*#__PURE__*/React.createElement("b", null, fmtKg(sugg.last.poids), " kg", sugg.last.parBras ? "/bras" : ""), sugg.last.ressenti === "marge" ? " avec de la marge" : sugg.last.ressenti === "tirait" ? ", ça tirait" : "", " → ", /*#__PURE__*/React.createElement("b", {
+  }, "Derni\xE8re fois : ", /*#__PURE__*/React.createElement("b", null, resumeSeries(sugg.last) ? resumeSeries(sugg.last) + " @ " : "", fmtKg(sugg.last.poids), " kg", sugg.last.parBras ? "/bras" : ""), sugg.last.ressenti === "marge" ? " avec de la marge" : sugg.last.ressenti === "tirait" ? ", ça tirait" : "", " → ", /*#__PURE__*/React.createElement("b", {
     style: {
       color: sugg.monte ? C.yellowDim : C.text
     }
@@ -7423,7 +7747,7 @@ function App() {
     style: {
       color: C.red
     }
-  }, "Plateau d\xE9tect\xE9 : 3 s\xE9ances bloqu\xE9es \xE0 ", fmtKg(stag.poids), " kg."), " ", /*#__PURE__*/React.createElement("span", {
+  }, "Plateau d\xE9tect\xE9 : aucun progr\xE8s, ni en charge ni en reps, sur les ", stag.seances, " derni\xE8res s\xE9ances (derni\xE8re : ", fmtKg(stag.poids), " kg)."), " ", /*#__PURE__*/React.createElement("span", {
     style: {
       color: C.dim
     }
@@ -9289,7 +9613,7 @@ function App() {
         }
       }, r.series, " s\xE9ries", r.suivant && /*#__PURE__*/React.createElement("div", {
         style: {
-          fontSize: 10
+          fontSize: 11
         }
       }, r.suivant.min - r.series, " \u2192 ", r.suivant.nom)));
     });
@@ -9689,7 +10013,7 @@ function App() {
       className: "text-xs mt-0.5",
       style: {
         color: C.dim,
-        fontSize: 10
+        fontSize: 11
       }
     }, k))))), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
       className: "flex items-center gap-3"
@@ -9785,7 +10109,7 @@ function App() {
           }
         }), /*#__PURE__*/React.createElement("div", {
           style: {
-            fontSize: 8,
+            fontSize: 10,
             color: C.dim,
             marginTop: 3
           }
@@ -9876,7 +10200,7 @@ function App() {
       style: {
         color: C.dim
       }
-    }, /*#__PURE__*/React.createElement("span", null, "\u2212"), [C.m0, C.m2, C.m3, C.yellow, C.yellowHi].map(c => /*#__PURE__*/React.createElement("i", {
+    }, /*#__PURE__*/React.createElement("span", null, "\u2212"), [C.h0, C.h1, C.h2, C.h3, C.h4].map(c => /*#__PURE__*/React.createElement("i", {
       key: c,
       style: {
         width: 11,
@@ -9957,7 +10281,7 @@ function App() {
       className: "text-xs",
       style: {
         color: C.dim,
-        fontSize: 9
+        fontSize: 11
       }
     }, "NIV."), /*#__PURE__*/React.createElement("div", {
       className: "leading-none",
@@ -10701,7 +11025,7 @@ function App() {
       className: "w-full rounded-2xl py-6 text-2xl font-black",
       style: {
         background: C.green,
-        color: C.onYellow
+        color: C.onGreen
       }
     }, "Je repars"), /*#__PURE__*/React.createElement("button", {
       onClick: () => relancer(rest.total),
@@ -11332,7 +11656,7 @@ function App() {
     className: "font-semibold",
     style: {
       color: tab === id ? C.text : C.dim,
-      fontSize: 10
+      fontSize: 11
     }
   }, label))))));
 }

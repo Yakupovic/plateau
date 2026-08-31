@@ -2,7 +2,7 @@
 
 Carnet de musculation personnel. PWA autonome, installée sur iPhone
 via l'écran d'accueil. Les données d'entraînement restent en local sur le
-téléphone (seule la connexion Spotify, optionnelle, communique avec Spotify).
+téléphone. **L'app ne fait aucun appel réseau** : rien ne sort du téléphone.
 
 **En ligne :** https://yakupovic.github.io/plateau/
 
@@ -23,7 +23,9 @@ téléphone (seule la connexion Spotify, optionnelle, communique avec Spotify).
 ```bash
 npm install
 node build.mjs --bump   # compile app.js + app.css, et invalide le cache
-node check.mjs          # monte l'app dans un DOM simulé : à lancer AVANT de pousser
+node check.mjs             # monte l'app dans un DOM simulé : à lancer AVANT de pousser
+node check-donnees.mjs     # données corrompues : ne doivent JAMAIS être écrasées
+node check-progression.mjs # 1RM estimé, cycle de déload, détection de plateau
 ```
 
 Puis commit + push sur `main` : GitHub Pages redéploie tout seul (~1 min).

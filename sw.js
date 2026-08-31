@@ -1,9 +1,13 @@
-const CACHE = "plateau-v1788041235818";
-const CORE = ["./", "./index.html", "./app.js?v=1788041235818", "./app.css?v=1788041235818", "./react.js?v=1788041235818", "./react-dom.js?v=1788041235818",
+const CACHE = "plateau-v1788207633577";
+const CORE = ["./", "./index.html", "./app.js?v=1788207633577", "./app.css?v=1788207633577", "./react.js?v=1788207633577", "./react-dom.js?v=1788207633577",
               "./manifest.json", "./icon-192.png", "./icon-512.png", "./icon-180.png"];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE).catch(() => {})).then(() => self.skipWaiting()));
+  // Pas de .catch ici, VOLONTAIREMENT : si une seule ressource manque (4G qui saute,
+  // portail captif du wifi de la salle), l'install doit ECHOUER. Sinon on active un
+  // cache incomplet et "activate" supprime l'ancien, qui lui marchait -> app morte
+  // hors ligne. Un install rate laisse simplement l'ancienne version en place.
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (e) => {
