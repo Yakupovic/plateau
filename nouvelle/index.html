@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>PLATEAU</title>
+<meta name="theme-color" content="#f3f1ec" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="PLATEAU" />
+<link rel="apple-touch-icon" href="../icon-180.png" />
+<link rel="icon" href="../icon-192.png" />
+<style>
+  html, body { margin: 0; padding: 0; background: #f3f1ec; color: #1b1a18; -webkit-text-size-adjust: 100%; overscroll-behavior-y: none; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+  * { box-sizing: border-box; }
+  button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
+  button:active { opacity: 0.55; }
+  input::placeholder { color: #9d978c; }
+  .ecran {
+    min-height: 100vh; min-height: 100dvh; max-width: 440px; margin: 0 auto;
+    display: flex; flex-direction: column;
+    padding: calc(env(safe-area-inset-top) + 16px) 28px calc(env(safe-area-inset-bottom) + 24px);
+  }
+  /* Compteurs charge / reps : les chiffres ne doivent jamais être rognés, même « 102,5 » sur un petit iPhone. */
+  .compteur-rond { width: 56px; height: 56px; border-radius: 28px; }
+  .compteur-valeur { font-size: 56px; }
+  @media (max-width: 389px) { .compteur-valeur { font-size: 46px; } }
+  @media (max-width: 359px) { .compteur-valeur { font-size: 38px; } .compteur-rond { width: 46px; height: 46px; border-radius: 23px; } }
+  .titre-geant { font-size: clamp(48px, 17vw, 76px); font-weight: 600; line-height: 0.95; letter-spacing: -0.03em; overflow-wrap: anywhere; }
+  .boot { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 28px; font-size: 16px; line-height: 1.5; color: #666159; }
+  .boot b { display: block; color: #1b1a18; font-size: 20px; margin-bottom: 8px; }
+  .boot code { display: block; margin-top: 12px; font-size: 12px; word-break: break-all; }
+</style>
+<script>
+  // Plutôt qu'un écran figé : afficher l'erreur si l'app ne démarre pas.
+  window.__plateauBoot = function (msg) {
+    var el = document.getElementById("root");
+    if (el) el.innerHTML = '<div class="boot"><div><b>PLATEAU n\'a pas pu démarrer</b>Recharge la page. Si ça persiste, envoie ce message à Claude :<code></code></div></div>';
+    var c = el && el.querySelector("code");
+    if (c) c.textContent = msg;
+  };
+  window.addEventListener("error", function (e) {
+    if (document.getElementById("plateau-ready")) return;
+    window.__plateauBoot((e.message || "erreur inconnue") + (e.filename ? " — " + String(e.filename).split("/").pop() + ":" + e.lineno : ""));
+  });
+</script>
+</head>
+<body>
+<div id="root"><div class="boot"><div><b>PLATEAU</b>Chargement…</div></div></div>
+<script src="react.js?v=1789326971619"></script>
+<script src="react-dom.js?v=1789326971619"></script>
+<script>
+  if (!window.React || !window.ReactDOM) window.__plateauBoot("React n'a pas pu être chargé (réseau ?)");
+</script>
+<script src="app.js?v=1789326971619"></script>
+<script>
+  (function () { var m = document.createElement("meta"); m.id = "plateau-ready"; document.head.appendChild(m); })();
+</script>
+</body>
+</html>
